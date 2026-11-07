@@ -271,7 +271,7 @@ async function promise() {
     <h2>Where this promise comes from</h2>
     <dl class="kv">
       <dt>Source</dt><dd><a href="${esc(safeUrl(p.source_url))}" rel="noopener">${esc(p.source_title || p.source_url)}</a></dd>
-      <dt>Saved copy</dt><dd>${p.archive_url ? `<a href="${esc(safeUrl(p.archive_url))}" rel="noopener">Wayback Machine, ${waybackDate(p.archive_timestamp)}</a>` : "Not archived yet"}</dd>
+      <dt>Saved copy</dt><dd>${p.archive_url ? `<a href="${esc(safeUrl(p.archive_url))}" rel="noopener">Wayback Machine, ${waybackDate(p.archive_timestamp)}</a>${/\.pdf($|\?)/i.test(p.archive_url) ? ` <span class="muted">(PDF; it can take a few seconds to appear)</span>` : ""}` : "Not archived yet"}</dd>
       <dt>Page fingerprint</dt><dd class="small"><code>${esc(p.sha256 || "—")}</code></dd>
       <dt>How it gets done</dt><dd>${esc(INSTRUMENT[p.instrument] || p.instrument)}</dd>
       <dt>Needs others to act</dt><dd>${p.requires_other_actor === "Y" ? "Yes. The governor can't do this alone" : "No. Within the governor's own power"}</dd>
