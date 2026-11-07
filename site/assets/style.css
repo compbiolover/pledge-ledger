@@ -7,13 +7,19 @@
   --wash: #f2f4f6;
   --rule: #d5dae0;
   --focus: #2b59c3;
+  --on-ink: #ffffff;
+  --field: #ffffff;
+  --tint-flag: #f6eef2;
+  --note-bg: #fbf3dc;
+  --note-edge: #e7d7a3;
+  color-scheme: light dark;
 
   /* status: Paul Tol muted, colorblind-safe; never party-coded */
   --kept: #117733;
   --partial: #88ccee;
   --in-progress: #ddcc77;
   --broken: #882255;
-  --not-rated: #ffffff;
+  --not-rated: var(--paper);
   --not-rated-edge: #8a949f;
 
   --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -34,7 +40,7 @@ body {
 a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
 a:hover { text-decoration-thickness: 2px; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
-.skip { position: absolute; left: -999px; top: 0; background: var(--ink); color: #fff; padding: .5rem 1rem; }
+.skip { position: absolute; left: -999px; top: 0; background: var(--ink); color: var(--on-ink); padding: .5rem 1rem; }
 .skip:focus { left: 0; z-index: 10; }
 
 /* ---------- frame ---------- */
@@ -119,14 +125,14 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .eo .h[role="columnheader"] { text-align: right; }
 .eo .cell { text-align: right; font-size: var(--s1); font-weight: 700; font-variant-numeric: tabular-nums; }
 .eo .cell span { display: block; font-size: var(--s-1); font-weight: 400; color: var(--ink-3); }
-.eo .flag { background: #f6eef2; }
+.eo .flag { background: var(--tint-flag); }
 
 /* ---------- browse ---------- */
 .filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: end; padding: 1rem; background: var(--wash); border-radius: 6px; margin: 1rem 0 1.5rem; }
 .filters label { display: grid; gap: .2rem; font-size: var(--s-1); font-weight: 600; color: var(--ink-2); }
 .filters input, .filters select, .form select, .form input, .form textarea {
   font: inherit; font-size: var(--s0); color: var(--ink); padding: .45rem .6rem; border: 1px solid var(--not-rated-edge);
-  border-radius: 4px; background: #fff; min-height: 2.5rem; }
+  border-radius: 4px; background: var(--field); min-height: 2.5rem; }
 .filters input[type="search"] { min-width: min(22rem, 100%); }
 .count { font-size: var(--s-1); color: var(--ink-2); margin: 0 0 .5rem; }
 .plist { list-style: none; margin: 0; padding: 0; }
@@ -137,7 +143,7 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 button, .btn {
   font: inherit; font-weight: 600; font-size: var(--s-1); cursor: pointer; padding: .55rem .9rem; min-height: 2.5rem;
   border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper); color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; }
-button.primary { background: var(--ink); color: #fff; }
+button.primary { background: var(--ink); color: var(--on-ink); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- promise page ---------- */
@@ -156,7 +162,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .notice { background: var(--wash); border-left: 4px solid var(--not-rated-edge); padding: .85rem 1rem; margin: 1.5rem 0; max-width: var(--measure); }
 .notice p { margin: 0; }
 .flags { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; padding: 0; margin: .5rem 0; }
-.flags li { font-size: var(--s-1); background: #fbf3dc; border: 1px solid #e7d7a3; border-radius: 4px; padding: .1rem .5rem; }
+.flags li { font-size: var(--s-1); background: var(--note-bg); border: 1px solid var(--note-edge); border-radius: 4px; padding: .1rem .5rem; }
 
 /* ---------- compare chart ---------- */
 .chart { max-width: 46rem; margin: 1rem 0; }
@@ -181,6 +187,37 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .form input[type="text"], .form input[type="url"] { width: 100%; }
 .hint { font-size: var(--s-1); color: var(--ink-3); margin: .25rem 0 0; }
 .status-line { font-size: var(--s-1); color: var(--ink-2); min-height: 1.4em; }
+
+/* dark mode follows the system setting */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e6e9ed;
+    --ink-2: #b8c0c9;
+    --ink-3: #8f99a5;
+    --paper: #161b21;
+    --wash: #1f262e;
+    --rule: #333c47;
+    --focus: #8fb0ff;
+    --on-ink: #161b21;
+    --field: #1f262e;
+    --tint-flag: #3a2430;
+    --note-bg: #3a3320;
+    --note-edge: #6b5d32;
+    /* same hues, lifted so they hold contrast on a dark page */
+    --kept: #44aa66;
+    --partial: #88ccee;
+    --in-progress: #ddcc77;
+    --broken: #cc6699;
+    --not-rated-edge: #7d8794;
+  }
+  .flags li { color: var(--ink); }
+}
+
+/* chart marks use the page's colors so they work in both modes */
+.chart .grid { stroke: var(--rule); }
+.chart .ci { stroke: var(--ink); }
+.chart .dot { stroke: var(--ink); fill: var(--paper); }
+.chart .dot.filled { fill: var(--ink); }
 
 @media (max-width: 720px) {
   h1 { font-size: var(--s3); }

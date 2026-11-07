@@ -320,11 +320,11 @@ function dotChart(officials) {
   const x = (v) => L + v * (W - L - R);
   const ticks = [0, 0.25, 0.5, 0.75, 1];
   return `<figure class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Share of each governor's promises kept or partially kept, with 95% ranges">
-    ${ticks.map((t) => `<line x1="${x(t)}" x2="${x(t)}" y1="0" y2="${H - 24}" stroke="#d5dae0"/><text x="${x(t)}" y="${H - 6}" text-anchor="middle">${t * 100}%</text>`).join("")}
+    ${ticks.map((t) => `<line x1="${x(t)}" x2="${x(t)}" y1="0" y2="${H - 24}" class="grid"/><text x="${x(t)}" y="${H - 6}" text-anchor="middle">${t * 100}%</text>`).join("")}
     ${rows.map((o, i) => { const y = i * rowH + 16, s = o.summary, ci = s.kept_or_partial_ci95 || [s.kept_or_partial_share, s.kept_or_partial_share];
       return `<text class="lbl" x="0" y="${y + 4}">${esc(o.name)} (${o.party})</text>
-        <line x1="${x(ci[0])}" x2="${x(ci[1])}" y1="${y}" y2="${y}" stroke="#1d2733" stroke-width="2"/>
-        <circle cx="${x(s.kept_or_partial_share)}" cy="${y}" r="5" fill="${o.party === "D" ? "#1d2733" : "#ffffff"}" stroke="#1d2733" stroke-width="2"><title>${esc(o.name)}: ${pct(s.kept_or_partial_share)} of ${s.n}</title></circle>`; }).join("")}
+        <line x1="${x(ci[0])}" x2="${x(ci[1])}" y1="${y}" y2="${y}" class="ci" stroke-width="2"/>
+        <circle cx="${x(s.kept_or_partial_share)}" cy="${y}" r="5" class="dot${o.party === "D" ? " filled" : ""}" stroke-width="2"><title>${esc(o.name)}: ${pct(s.kept_or_partial_share)} of ${s.n}</title></circle>`; }).join("")}
   </svg><figcaption class="small muted">Dot: share kept or partially kept. Line: 95% range. Filled dots are Democrats, open dots Republicans.</figcaption></figure>`;
 }
 
