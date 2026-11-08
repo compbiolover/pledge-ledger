@@ -393,7 +393,7 @@ async function methods() {
   $("#data-link").href = `https://github.com/${REPO}/tree/main/data`;
   $("#built").textContent = `Codebook version ${meta.codebook_version}. Data built ${fmtDate(meta.built)}.`;
   $("#prereg-status").textContent = meta.prereg_frozen_on
-    ? `The pre-registration was frozen on ${fmtDate(meta.prereg_frozen_on)}.` : "The pre-registration has not been frozen yet.";
+    ? `The pre-registration was frozen on ${fmtDate(meta.prereg_frozen_on)} (UTC).` : "The pre-registration has not been frozen yet.";
   $("#prereg-link").href = PREREG_URL;
   $("#review-link").href = issueUrl();
 }

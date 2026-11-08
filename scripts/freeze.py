@@ -10,7 +10,7 @@ import hashlib
 import json
 import os
 import sys
-from datetime import date
+from datetime import datetime, timezone
 
 ROOT = os.environ.get("PT_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(ROOT, "prereg", "manifest.json")
@@ -38,7 +38,7 @@ def main():
     with open(os.path.join(ROOT, "data", "officials.csv"), newline="", encoding="utf-8") as f:
         officials = [o["official_id"] for o in csv.DictReader(f)]
     manifest = {
-        "frozen_on": date.today().isoformat(),
+        "frozen_on": datetime.now(timezone.utc).date().isoformat(),  # UTC
         "codebook_version": CODEBOOK_VERSION,
         "files": {p: file_hash(os.path.join(ROOT, p)) for p in FILES},
         "officials": officials,
