@@ -31,4 +31,4 @@ Nothing is changed silently. Every change below is public and dated.
 
 ## Amendments
 
-None yet.
+- **2026-11-08 (UTC).** Added the Zenodo DOI for the frozen release: https://doi.org/10.5281/zenodo.24047633. No other change. Because this file was edited after the freeze, its current fingerprint no longer matches `prereg/manifest.json`; the frozen version is the one in that release.

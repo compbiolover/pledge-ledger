@@ -6,6 +6,8 @@ authors:
   - family-names: Willems
     given-names: Andrew
     orcid: "https://orcid.org/0000-0002-7927-0745"
+doi: 10.5281/zenodo.24047632
+date-released: "2026-11-08"
 repository-code: "https://github.com/compbiolover/promise-tracker"
 url: "https://compbiolover.github.io/promise-tracker/"
 license: CC-BY-4.0

@@ -1,5 +1,7 @@
 # Promise Tracker
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24047632.svg)](https://doi.org/10.5281/zenodo.24047632)
+
 Tracks every specific campaign promise made by the 12 governors and 17 U.S. senators who won flipped or open seats in November 2026. Each promise gets three separate ratings: what happened, how hard the governor pushed, and what stood in the way.
 
 - **Public site:** `site/` (static, no build tools; deployed to GitHub Pages)
@@ -78,3 +80,9 @@ To continue on another computer, use **Load my ratings file** in the tool.
 ## License
 
 Data, codebook and site text: [CC BY 4.0](LICENSE-DATA.md). Code: [MIT](LICENSE). Quoted campaign promises belong to their authors.
+
+## Cite
+
+Willems, A. (2026). *Promise Tracker: campaign promises of governors and senators elected in 2026* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.24047632
+
+The frozen pre-registration release is https://doi.org/10.5281/zenodo.24047633.
