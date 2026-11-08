@@ -11,7 +11,10 @@ Never add AI attribution anywhere in this repository or its GitHub activity. Tha
 - no session, chat or tool links
 - no emoji badges or signatures
 
-This applies to commit messages, pull request titles and descriptions, issue comments, code comments, and docs. Write commit messages and PR descriptions as plain descriptions of the change.
+This applies to commit messages, pull request titles and descriptions, issue comments, code comments, docs, and branch names. Write commit messages and PR descriptions as plain descriptions of the change.
+
+- **Branch names describe the change** (`readme-rewrite`, `fix-share-cards`). Never name a branch after an AI, a tool or a session (`claude/...`, `codex/...`, `copilot/...`), even if your tool suggests one.
+- **Check what you posted.** Some tools add a footer or link to PR descriptions and comments on their own. After you create or edit a PR, issue or comment, read it back and remove anything you didn't write.
 
 ## The project in one paragraph
 
