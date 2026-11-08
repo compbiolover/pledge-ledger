@@ -115,6 +115,77 @@ class Safety(unittest.TestCase):
         self.assertEqual(cited, {"https://a": 2, "https://b": 1})
 
 
+class ReviewerPool(unittest.TestCase):
+    PIDS = {"X-1", "X-2"}
+
+    def asg(self, *rows):
+        return [{"pledge_id": p, "coder": c} for p, c in rows]
+
+    def test_assigned_pair_may_rate(self):
+        rs = [ev("X-1", "ann", outcome="kept", effort="2"), ev("X-1", "bob", outcome="kept", effort="2")]
+        errs, by_pid = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob")), self.PIDS, rs)
+        self.assertEqual(errs, [])
+        self.assertEqual(by_pid["X-1"], ["ann", "bob"])
+
+    def test_unassigned_coder_rejected(self):
+        rs = [ev("X-1", "cat", outcome="kept", effort="2")]
+        errs, _ = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob")), self.PIDS, rs)
+        self.assertTrue(any("cat is not assigned to X-1" in e for e in errs))
+
+    def test_unassigned_promise_is_open(self):
+        rs = [ev("X-2", "cat", outcome="kept", effort="2")]
+        errs, _ = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob")), self.PIDS, rs)
+        self.assertEqual(errs, [])
+
+    def test_needs_exactly_two(self):
+        one, _ = build.validate_assignments(self.asg(("X-1", "ann")), self.PIDS, [])
+        three, _ = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob"), ("X-1", "cat")), self.PIDS, [])
+        self.assertTrue(any("exactly two" in e for e in one))
+        self.assertTrue(any("exactly two" in e for e in three))
+
+    def test_bad_rows(self):
+        errs, _ = build.validate_assignments(self.asg(("Z-9", "ann"), ("X-1", "ann"), ("X-1", "ann")), self.PIDS, [])
+        self.assertTrue(any("unknown pledge_id Z-9" in e for e in errs))
+        self.assertTrue(any("listed twice" in e for e in errs))
+
+    def test_three_coders_on_one_promise_fails(self):
+        rs = [ev("X-1", c, outcome="kept", effort="2") for c in ("ann", "bob", "cat")]
+        _, _, errs = build.consensus(rs, [])
+        self.assertTrue(any("only two reviewers" in e for e in errs))
+
+    def test_pairs_keep_separate_kappa(self):
+        rs = [ev("X-1", "ann", outcome="kept", effort="2"), ev("X-1", "bob", outcome="kept", effort="2"),
+              ev("X-2", "cat", outcome="kept", effort="2"), ev("X-2", "dan", outcome="kept", effort="2")]
+        _, pairs, errs = build.consensus(rs, [])
+        self.assertEqual(errs, [])
+        self.assertIn(("status", "outcome", "ann", "bob"), pairs)
+        self.assertIn(("status", "outcome", "cat", "dan"), pairs)
+
+
+class Adjudicator(unittest.TestCase):
+    def adj(self, who):
+        return [{"pledge_id": "X-1", "task": "status", "period_end": "2027-04-30", "field": "outcome",
+                 "final_value": "partial", "adjudicator": who, "decided_at": "2027-05-04", "reason": "r"}]
+
+    def rs(self):
+        return [ev("X-1", "ann", outcome="partial", effort="2", blocker="budget"),
+                ev("X-1", "bob", outcome="broken", effort="2", blocker="budget")]
+
+    def test_rater_cannot_break_own_tie(self):
+        _, _, errs = build.consensus(self.rs(), self.adj("ann"))
+        self.assertTrue(any("must be someone else" in e for e in errs))
+
+    def test_outsider_can(self):
+        _, _, errs = build.consensus(self.rs(), self.adj("cat"))
+        self.assertEqual(errs, [])
+
+    def test_adjudicator_required(self):
+        off = [{"official_id": "X", "party": "D", "office": "Governor"}]
+        pl = [{"pledge_id": "X-1", "official_id": "X", "pledge_text": "t", "archive_url": "https://web.archive.org/x"}]
+        errs, _ = build.validate(off, pl, [], self.adj(" "), [])
+        self.assertTrue(any("needs an adjudicator" in e for e in errs))
+
+
 class Validation(unittest.TestCase):
     def setUp(self):
         self.off = [{"official_id": "X", "party": "D", "office": "Governor"}]

@@ -49,6 +49,7 @@ Everything is in [`data/`](data/) as plain CSV:
 | `pledges.csv` | Every promise: exact quote, source link, archive link, policy area |
 | `ratings/*.csv` | Each reviewer's ratings, one row per rating |
 | `adjudications.csv` | How disagreements between reviewers were settled |
+| `assignments.csv` | Which two reviewers rate each promise, when there are more than two |
 | `corrections.csv` | Every fix to a quote, source or rating |
 | `power_context.csv` | Which party controls each state legislature |
 

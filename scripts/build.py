@@ -6,6 +6,7 @@ Usage:  python3 scripts/build.py            (writes site/data/*.json and out/*.c
 
 Inputs (data/):
   officials.csv, pledges.csv, power_context.csv, adjudications.csv, corrections.csv, ratings/<coder>.csv
+  assignments.csv (optional; pledge_id,coder: who rates which promise when there are more than two reviewers)
   ../prereg/manifest.json (optional; once present, changed promises need a logged correction)
 Outputs:
   site/data/{officials,pledges,summary,reliability,meta,corrections}.json   public site
@@ -169,6 +170,8 @@ def validate(officials, pledges, ratings, adjudications, power):
             errors.append(f"adjudications: bad task/field {a['task']}/{a['field']} for {a['pledge_id']}")
         if not a["reason"].strip():
             errors.append(f"adjudications: {a['pledge_id']} {a['field']} needs a reason")
+        if not (a.get("adjudicator") or "").strip():
+            errors.append(f"adjudications: {a['pledge_id']} {a['field']} needs an adjudicator")
         v = a["final_value"]
         if a["field"] == "decision":
             ok = v in ("keep", "drop") or (v.startswith("merge:") and v[6:] in pids and v[6:] != a["pledge_id"])
@@ -182,6 +185,28 @@ def validate(officials, pledges, ratings, adjudications, power):
         if pc["official_id"] not in off_ids:
             errors.append(f"power_context: unknown official_id {pc['official_id']}")
     return errors, warnings
+
+
+def validate_assignments(assignments, pledge_ids, ratings):
+    """Each assigned promise gets exactly two reviewers, and only they may rate it."""
+    errors, by_pid = [], defaultdict(list)
+    for i, a in enumerate(assignments, start=2):
+        pid, coder = (a.get("pledge_id") or "").strip(), (a.get("coder") or "").strip()
+        if pid not in pledge_ids:
+            errors.append(f"assignments.csv line {i}: unknown pledge_id {pid}")
+        elif coder in by_pid[pid]:
+            errors.append(f"assignments.csv line {i}: {coder} is listed twice for {pid}")
+        elif not coder:
+            errors.append(f"assignments.csv line {i}: coder is empty")
+        else:
+            by_pid[pid].append(coder)
+    for pid, coders in sorted(by_pid.items()):
+        if len(coders) != 2:
+            errors.append(f"assignments.csv: {pid} has {len(coders)} reviewers; each promise needs exactly two")
+    for r in ratings:
+        if by_pid.get(r["pledge_id"]) and r["coder"] not in by_pid[r["pledge_id"]]:
+            errors.append(f"{r['_file']} line {r['_line']}: {r['coder']} is not assigned to {r['pledge_id']}")
+    return errors, by_pid
 
 
 CORRECTION_KINDS = ("quote", "source", "rating", "metadata", "other")
@@ -274,6 +299,9 @@ def consensus(ratings, adjudications):
         pid, task, period = key
         coders = sorted(by_coder)
         res = {"coders": coders, "fields": {}}
+        if len(coders) > 2:  # kappa compares pairs; a third coder's ratings would be silently ignored
+            adj_errors.append(f"ratings: {pid} ({period or task}) was rated by {', '.join(coders)}; "
+                              "only two reviewers per promise. Use data/assignments.csv")
         for field in FIELDS[task]:
             vals = {c: field_value(by_coder[c], field) for c in coders}
             a = adj.get((pid, task, period, field))
@@ -292,6 +320,9 @@ def consensus(ratings, adjudications):
             if a and state != "adjudicated":
                 adj_errors.append(f"adjudications: {pid} {field} ({period or task}) is {state}, not disputed; "
                                   "tie-breakers may only resolve disagreements between two coders")
+            if a and a["adjudicator"].strip() in coders:
+                adj_errors.append(f"adjudications: {pid} {field} ({period or task}) was decided by "
+                                  f"{a['adjudicator']}, who also rated it; the tie-breaker must be someone else")
             res["fields"][field] = {"state": state, "value": value,
                                     "reason": a["reason"] if a else ""}
         # evidence and notes: union from coders, only shown once outcome is final
@@ -424,8 +455,12 @@ def build(check_only=False):
     man_path = os.path.join(ROOT, "prereg", "manifest.json")
     manifest = json.load(open(man_path, encoding="utf-8")) if os.path.exists(man_path) else None
     ratings = load_ratings()
+    asg_path = os.path.join(DATA, "assignments.csv")
+    assignments = read_csv(asg_path) if os.path.exists(asg_path) else []
 
     errors, warnings = validate(officials, pledges, ratings, adjudications, power)
+    asg_errors, assigned = validate_assignments(assignments, {p["pledge_id"] for p in pledges}, ratings)
+    errors += asg_errors
     errors += validate_corrections(corrections, {p["pledge_id"] for p in pledges})
     prereg, prereg_errors = check_prereg(pledges, manifest, corrections)
     errors += prereg_errors
@@ -577,6 +612,7 @@ def build(check_only=False):
     coder_q = [{"office": office_of[p["official_id"]]} | {k: p[k] for k in ("pledge_id", "state", "policy_area", "pledge_text", "source_type",
                                   "source_url", "archive_url", "instrument", "requires_other_actor",
                                   "compound_group")} | {"review_flags": [f for f in p["review_flags"].split(";") if f]}
+               | {"assigned_to": assigned.get(p["pledge_id"], [])}  # empty: open to any reviewer
                for p in pledges]
     dump(os.path.join(SITE, "coder", "pledges.json"),
          {"codebook_version": CODEBOOK_VERSION, "pledges": coder_q})

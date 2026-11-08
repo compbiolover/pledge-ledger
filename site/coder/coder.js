@@ -53,9 +53,10 @@ function visibleOrder() {
 }
 
 function progress() {
-  const n = done().size;
-  $("#bar").style.width = `${(100 * n) / Q.length}%`;
-  $("#progress-text").textContent = `${n} of ${Q.length} done`;
+  const d = done();
+  const n = S.order.filter((ix) => d.has(Q[ix].pledge_id)).length;
+  $("#bar").style.width = `${S.order.length ? (100 * n) / S.order.length : 0}%`;
+  $("#progress-text").textContent = `${n} of ${S.order.length} done`;
 }
 
 const radios = (name, items, val) => `<div class="opts">${items.map(([v, t], i) =>
@@ -63,6 +64,12 @@ const radios = (name, items, val) => `<div class="opts">${items.map(([v, t], i) 
 
 function render() {
   const order = visibleOrder();
+  if (!S.order.length) {
+    $("#card").innerHTML = `<div class="card"><h2 style="margin-top:0">No promises are assigned to you</h2>
+      <p>Every promise is assigned to other reviewers in <code>data/assignments.csv</code>. Check your reviewer ID, or ask the project lead to assign you some.</p></div>`;
+    progress();
+    return;
+  }
   if (!order.length) {
     $("#card").innerHTML = `<div class="card"><h2 style="margin-top:0">All done for this task</h2>
       <p>Download your ratings and add the file to the repository as <code>data/ratings/${esc(S.coder)}.csv</code>.</p>
@@ -222,7 +229,9 @@ $("#setup-form").addEventListener("submit", (e) => {
   S.period = $("#period").value;
   if (S.task === "status" && !S.period) { $("#period").focus(); return; }
   if (!hasBase(S.coder)) { askBase(); return; }
-  S.order = seededOrder(Q.length, S.coder);
+  // a promise with no assignment is open to everyone; otherwise only its two assigned reviewers see it
+  const mineIx = [...Q.keys()].filter((ix) => !Q[ix].assigned_to?.length || Q[ix].assigned_to.includes(S.coder));
+  S.order = seededOrder(mineIx.length, S.coder).map((j) => mineIx[j]);
   S.i = 0;
   try { localStorage.setItem("pt-last-coder", S.coder); } catch { /* storage unavailable */ }
   $("#who").textContent = `${S.coder}: ${S.task === "extraction" ? "checking the promise list" : `rating as of ${S.period}`}`;

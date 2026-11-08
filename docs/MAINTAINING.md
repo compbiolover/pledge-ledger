@@ -34,7 +34,18 @@ For both tasks:
 1. Each reviewer works alone and clicks **Download my ratings**.
 2. Commit the file as `data/ratings/<reviewer-id>.csv`. Use a pull request so the build checks it.
 3. The build lists disagreements in `out/adjudication_queue.csv` (also printed in the Actions log).
-4. A third person resolves each one by adding a row to `data/adjudications.csv` with a written reason.
+4. A third person resolves each one by adding a row to `data/adjudications.csv` with a written reason. The tie-breaker must not be one of the two people who rated that promise; the build fails if they are.
+
+### More than two reviewers
+
+Each promise is still rated by exactly two people. With a larger pool, list who rates what in `data/assignments.csv`, one row per reviewer per promise (`pledge_id,coder`).
+
+- A promise with no rows is open to anyone. A promise with rows needs exactly two, and only those two may rate it.
+- The rating tool shows each reviewer only the promises open to them.
+- The build fails if three people rate the same promise, because agreement is measured between two.
+- Agreement is reported for each pair of reviewers separately.
+- Give every pair a random mix of promises from both parties and all states, so no pair rates only one party.
+- The file is public, so reviewers can see who they're paired with. Remind them to work alone anyway.
 
 To continue on another computer, use **Load my ratings file** in the tool.
 
@@ -55,4 +66,4 @@ To continue on another computer, use **Load my ratings file** in the tool.
 
 ## Open tasks
 
-- Recruit the second reviewer. Nothing gets rated without one.
+- Recruit at least two reviewers. Nothing gets rated without two.
