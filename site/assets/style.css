@@ -230,3 +230,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* list items that are layout rows, not prose */
 .roster > li, .plist > li, .legend li, .flags li, .timeline li { max-width: none; }
+
+/* office sections on the home page */
+.office-head { margin-top: 3.5rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; }
+.office-head .small { font-weight: 400; }
+section + section .office-head { padding-top: 1.5rem; border-top: 3px solid var(--ink); }
+.group-head h3 { margin: 0; }

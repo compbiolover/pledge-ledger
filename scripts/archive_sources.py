@@ -21,8 +21,13 @@ Setup (one time):
        export IA_SECRET_KEY="your-secret-key"
 
 Run:
-  python3 archive_sources.py pledges_2026_governors_v0.2.csv
-  python3 archive_sources.py pledges_2026_governors_v0.2.csv --dry-run   # just list URLs
+  python3 scripts/archive_sources.py data/pledges.csv --in-place   # fill missing archive links in the repo data
+  python3 scripts/archive_sources.py some.csv                      # write some_archived.csv next to it
+  add --dry-run to just list what would be archived
+
+With --in-place, only rows whose archive_url is empty are archived, and the
+file is rewritten with archive_url, archive_timestamp and sha256 filled in
+(a .bak copy is kept).
 
 Only uses the Python standard library (Python 3.8+). Expect roughly
 30-60 seconds per URL; ~113 URLs takes about an hour or two.
@@ -125,12 +130,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv_path")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--in-place", action="store_true", help="fill empty archive columns in the input file")
     ap.add_argument("--pause", type=float, default=8.0, help="seconds between URLs")
     args = ap.parse_args()
 
     with open(args.csv_path, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    urls = sorted({r["source_url"].strip() for r in rows if r["source_url"].strip()})
+    pending = [r for r in rows if not args.in_place or not r.get("archive_url", "").strip()]
+    urls = sorted({r["source_url"].strip() for r in pending if r["source_url"].strip()})
     print(f"{len(rows)} pledges, {len(urls)} unique source URLs")
 
     if args.dry_run:
@@ -164,6 +171,23 @@ def main():
         prog[u] = rec
         save_progress(prog)
         time.sleep(args.pause)
+
+    if args.in_place:
+        import shutil
+        shutil.copyfile(args.csv_path, args.csv_path + ".bak")
+        fields = list(rows[0].keys())
+        filled = 0
+        for r in rows:
+            rec = prog.get(r["source_url"].strip(), {})
+            if not r.get("archive_url", "").strip() and rec.get("archive_url"):
+                r["archive_url"], r["archive_timestamp"], r["sha256"] = rec["archive_url"], rec["archive_timestamp"], rec.get("sha256", "")
+                filled += 1
+        with open(args.csv_path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=fields)
+            w.writeheader()
+            w.writerows(rows)
+        print(f"\nFilled archive links for {filled} rows in {args.csv_path} (backup: {args.csv_path}.bak)")
+        return
 
     out = re.sub(r"\.csv$", "", args.csv_path) + "_archived.csv"
     fields = list(rows[0].keys()) + ["archive_url", "archive_timestamp", "sha256", "local_snapshot"]

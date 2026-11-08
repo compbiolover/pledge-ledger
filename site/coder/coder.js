@@ -5,7 +5,8 @@ const OUTCOMES = [["kept", "Kept"], ["partial", "Partially kept"], ["in_progress
 const EFFORTS = [["0", "No action"], ["1", "Talk only"], ["2", "Formal start"], ["3", "Spent capital"], ["4", "Every option"], ["-1", "Undermined"]];
 const BLOCKERS = [["too_early", "Too early to tell"], ["none_attempted", "Not attempted"], ["legislature_opposition", "Opposing party in legislature"],
   ["legislature_own_party", "Own party in legislature"], ["courts", "Courts"], ["federal", "Federal government"], ["voters", "Voters"],
-  ["budget", "Budget shortfall"], ["self_reversed", "Governor changed position"]];
+  ["budget", "Budget shortfall"], ["self_reversed", "Changed position"],
+  ["other_chamber", "The House (Congress)"], ["president", "The president (Congress)"], ["filibuster", "Filibuster (Congress)"]];
 const AREA = { economy_tax: "Economy and taxes", budget: "Budget", education: "Education", health: "Health", housing: "Housing",
   criminal_justice: "Criminal justice", immigration: "Immigration", environment_energy: "Energy and environment",
   infrastructure_transport: "Infrastructure", labor: "Jobs and labor", social_services: "Social services", elections_democracy: "Elections",
@@ -80,13 +81,16 @@ function render() {
       <fieldset><legend>Could someone later show it was kept or broken?</legend>${radios("testable", [["Y", "Yes, testable"], ["N", "No, too vague"]], prev.testable)}</fieldset>
       <fieldset><legend>Does the quote match the saved source word for word?</legend>${radios("verbatim_ok", [["Y", "Yes, it matches"], ["N", "No, or a condition is missing"]], prev.verbatim_ok)}</fieldset>`
     : `
-      <fieldset><legend>What happened by ${esc(S.period)}?</legend>${radios("outcome", OUTCOMES, prev.outcome)}</fieldset>
-      <fieldset><legend>How hard did the governor push?</legend>${radios("effort", EFFORTS, prev.effort)}</fieldset>
+      ${p.office === "Senator"
+        ? `<fieldset><legend>What did the senator do by ${esc(S.period)}? (Part 2b)</legend>${radios("effort", EFFORTS, prev.effort)}</fieldset>
+           <fieldset><legend>What happened to the policy?</legend>${radios("outcome", OUTCOMES, prev.outcome)}</fieldset>`
+        : `<fieldset><legend>What happened by ${esc(S.period)}?</legend>${radios("outcome", OUTCOMES, prev.outcome)}</fieldset>
+           <fieldset><legend>How hard did the governor push?</legend>${radios("effort", EFFORTS, prev.effort)}</fieldset>`}
       <fieldset id="blocker-wrap" ${prev.outcome === "kept" ? "hidden" : ""}><legend>Main obstacle</legend>${radios("blocker", BLOCKERS, prev.blocker)}</fieldset>
       <label><strong>Evidence links</strong><textarea id="evidence" placeholder="One link per line, most authoritative first">${esc((prev.evidence_urls || "").split("|").join("\n"))}</textarea>
         <span class="hint">Enacted text first, then official records, then government releases. News only for effort and obstacles.</span></label>`;
   $("#card").innerHTML = `<article class="card">
-    <p class="small muted num">${esc(p.pledge_id)}. ${esc(p.state)}. ${esc(AREA[p.policy_area] || p.policy_area)}. ${p.requires_other_actor === "Y" ? "Needs others to act." : "Governor can act alone."}${p.compound_group ? ` Part of group ${esc(p.compound_group)}.` : ""}</p>
+    <p class="small muted num">${esc(p.pledge_id)}. ${esc(p.office || "Governor")}, ${esc(p.state)}. ${esc(AREA[p.policy_area] || p.policy_area)}. ${p.requires_other_actor === "Y" ? "Needs others to act." : "Governor can act alone."}${p.compound_group ? ` Part of group ${esc(p.compound_group)}.` : ""}</p>
     <p class="quote quote-lg">${esc(p.pledge_text)}</p>
     <p class="small"><a href="${esc(safeUrl(p.archive_url))}" target="_blank" rel="noopener">Open the saved copy</a> &nbsp; <a href="${esc(safeUrl(p.source_url))}" target="_blank" rel="noopener">Open the live page</a></p>
     ${p.review_flags.length ? `<ul class="flags">${p.review_flags.map((f) => `<li>${esc(f.replace(/_/g, " "))}</li>`).join("")}</ul>` : ""}

@@ -1,6 +1,6 @@
 # Promise Tracker Codebook
 
-**Version 1.0** (2026-11-07). Every rating records the codebook version it used. If a rule changes, bump the version, log the change at the bottom, and re-code the affected pledges.
+**Version 1.1** (2026-11-08). Every rating records the codebook version it used. If a rule changes, bump the version, log the change at the bottom, and re-code the affected pledges.
 
 This codebook adapts the Comparative Party Pledges Project (CPP) definitions and the Polimeter rating scale, and adds two fields of its own: effort and blocker.
 
@@ -100,6 +100,41 @@ Archive every evidence URL (run `scripts/archive_sources.py` on the evidence lis
 
 ---
 
+## Part 2b. Senators: effort comes first
+
+A single senator rarely makes a law happen alone, so for senators the **effort** rating is the headline and the outcome is shown second. The outcome still uses the scale in 2.1, judged at the level of policy: did the promised thing happen?
+
+**Pledges a senator can keep alone** (`requires_other_actor = N`: "I will introduce a bill", "I will vote against", "I won't take corporate PAC money", "I will hold a town hall in every county") are rated on the senator's own action, so outcome and effort usually match.
+
+### Effort for senators
+| Code | Label | Requires evidence of |
+|---|---|---|
+| `0` | None | No public action during the period |
+| `1` | Talk | Only speeches, statements, interviews or posts |
+| `2` | Formal start | Introduced or cosponsored a bill, offered an amendment, voted as pledged on a recorded vote, or sent a formal oversight letter |
+| `3` | Spent capital | Led the effort: got a hearing or markup as lead sponsor, whipped votes, used procedural tools (holds, objections to unanimous consent, discharge efforts), traded support, or publicly pressured named holdouts |
+| `4` | Exhausted options | Every available route tried: standalone bill, amendment to must-pass legislation, appropriations rider, and procedural pressure |
+| `-1` | Undermined | Voted against the pledge, cosponsored something contrary, or publicly walked it back |
+
+A recorded vote counts only when the vote is on the pledged policy itself, not on an unrelated package that happened to contain it, unless the senator publicly tied the vote to the pledge.
+
+### Extra blocker codes for Congress
+| Code | Meaning |
+|---|---|
+| `other_chamber` | Passed the Senate but the House did not act or voted it down |
+| `president` | Vetoed, or a veto threat stopped it |
+| `filibuster` | Failed a cloture vote despite majority support |
+
+`legislature_opposition` means the other party in the Senate, and `legislature_own_party` means the senator's own party, including leadership declining to schedule a vote.
+
+### Senate instruments
+`sponsor_bill`, `vote`, `appropriations`, `oversight`, `nomination`, `constituent_service`, `mixed`, `unclear`.
+
+### Reporting for senators
+The headline measure is the share of a senator's rated promises with effort 2 or higher ("took formal action"), with a 95% Wilson interval. Delivery rates are shown second. Senators and governors are never pooled together.
+
+---
+
 ## Part 3. Reliability procedure
 
 1. **Two coders, independently.** Each coder uses the rating tool alone. The tool never shows the other coder's ratings.
@@ -122,5 +157,6 @@ Archive every evidence URL (run `scripts/archive_sources.py` on the evidence lis
 ---
 
 ## Change log
+- **1.1** (2026-11-08): adds senators. Effort-first reporting, a Senate effort scale, three Congress blocker codes and Senate instruments (Part 2b).
 - **1.0** (2026-11-07): first full version. Adds effort, blocker and review-date rules to the extraction rules from v0.1.
 - **0.1** (2026-11-07): extraction rules used to build the initial dataset.

@@ -117,7 +117,7 @@ class Safety(unittest.TestCase):
 
 class Validation(unittest.TestCase):
     def setUp(self):
-        self.off = [{"official_id": "X", "party": "D"}]
+        self.off = [{"official_id": "X", "party": "D", "office": "Governor"}]
         self.pl = [{"pledge_id": "X-1", "official_id": "X", "pledge_text": "Do a thing", "archive_url": "https://web.archive.org/x"}]
 
     def test_blocker_required_when_not_kept(self):
@@ -144,6 +144,15 @@ class Validation(unittest.TestCase):
         errs, _ = build.validate(self.off, self.pl, [ev("X-1", "ann", task="extraction", decision="merge",
                                                         merge_into="X-1", testable="Y", verbatim_ok="Y")], [], [])
         self.assertTrue(any("merge_into" in e for e in errs))
+
+    def test_rejects_unknown_office(self):
+        errs, _ = build.validate([{"official_id": "X", "party": "D", "office": "Mayor"}], self.pl, [], [], [])
+        self.assertTrue(any("office" in e for e in errs))
+
+    def test_congress_blockers_allowed(self):
+        errs, _ = build.validate(self.off, self.pl, [ev("X-1", "ann", outcome="broken", effort="2", blocker="filibuster",
+                                                        evidence_urls="https://x")], [], [])
+        self.assertEqual(errs, [])
 
     def test_valid_passes(self):
         errs, _ = build.validate(self.off, self.pl, [ev("X-1", "ann", outcome="kept", effort="2",

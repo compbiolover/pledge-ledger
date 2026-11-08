@@ -26,11 +26,15 @@ DATA = os.path.join(ROOT, "data")
 SITE = os.path.join(ROOT, "site")
 OUT = os.path.join(ROOT, "out")
 
-CODEBOOK_VERSION = "1.0"
+CODEBOOK_VERSION = "1.1"
 OUTCOMES = ["kept", "partial", "in_progress", "not_rated", "broken"]
 EFFORTS = ["-1", "0", "1", "2", "3", "4"]
 BLOCKERS = ["none_attempted", "legislature_opposition", "legislature_own_party", "courts",
-            "federal", "voters", "budget", "self_reversed", "too_early"]
+            "federal", "voters", "budget", "self_reversed", "too_early",
+            # Congress only
+            "other_chamber", "president", "filibuster"]
+OFFICES = ["Governor", "Senator"]
+ACTION_EFFORTS = ("2", "3", "4")  # a formal step or more
 DECISIONS = ["keep", "drop", "merge"]
 YN = ["Y", "N"]
 TASKS = ["extraction", "status"]
@@ -116,6 +120,8 @@ def validate(officials, pledges, ratings, adjudications, power):
     for o in officials:
         if o["party"] not in ("D", "R", "I"):
             errors.append(f"officials: {o['official_id']} party must be D, R or I")
+        if o["office"] not in OFFICES:
+            errors.append(f"officials: {o['official_id']} office must be one of {OFFICES}")
     for i, r in enumerate(ratings, 2):
         where = f"{r['_file']} line {i if '_line' not in r else r['_line']}"
         if r["pledge_id"] not in pids:
@@ -361,7 +367,13 @@ def build(check_only=False):
             o = x["current"]["outcome"]
             ob = "kept" if o in ("kept", "partial") else ("not_kept" if o == "broken" else "open")
             grid[f"{ob}|{band}"] += 1
+        efforts = [x["current"]["effort"] for x in items if x["current"]["effort"] is not None]
+        acted = sum(1 for e in efforts if e in ACTION_EFFORTS)
+        aci = wilson(acted, len(efforts))
         return {"n": n, "outcomes": {o: oc.get(o, 0) for o in OUTCOMES},
+                "effort_rated": len(efforts),
+                "acted_share": round(acted / len(efforts), 4) if efforts else None,
+                "acted_ci95": [round(v, 4) for v in aci] if aci else None,
                 "kept_or_partial_share": round(kept_like / n, 4) if n else None,
                 "kept_or_partial_ci95": [round(v, 4) for v in ci] if ci else None,
                 "effort_outcome_grid": dict(grid),
@@ -381,12 +393,18 @@ def build(check_only=False):
                               "power_context": power_by[o["official_id"]]})
 
     cohorts = {}
-    for party in sorted({o["party"] for o in officials}):
-        offs = [o for o in pub_officials if o["party"] == party]
-        pooled = summarize([x for x in active if x["official_id"] in {o["official_id"] for o in offs}])
-        shares = [o["summary"]["kept_or_partial_share"] for o in offs if o["summary"]["rated"]]
-        cohorts[party] = {"officials": [o["official_id"] for o in offs], "pooled": pooled,
-                          "mean_of_officials_kept_or_partial": round(sum(shares) / len(shares), 4) if shares else None}
+    for office in OFFICES:
+        cohorts[office] = {}
+        for party in sorted({o["party"] for o in officials if o["office"] == office}):
+            offs = [o for o in pub_officials if o["party"] == party and o["office"] == office]
+            ids = {o["official_id"] for o in offs}
+            pooled = summarize([x for x in active if x["official_id"] in ids])
+            shares = [o["summary"]["kept_or_partial_share"] for o in offs if o["summary"]["rated"]]
+            acted = [o["summary"]["acted_share"] for o in offs if o["summary"]["acted_share"] is not None]
+            cohorts[office][party] = {
+                "officials": sorted(ids), "pooled": pooled,
+                "mean_of_officials_kept_or_partial": round(sum(shares) / len(shares), 4) if shares else None,
+                "mean_of_officials_acted": round(sum(acted) / len(acted), 4) if acted else None}
 
     meta = {"built": date.today().isoformat(), "codebook_version": CODEBOOK_VERSION,
             "pledges_total": len(pub_pledges), "pledges_active": len(active),
@@ -408,7 +426,8 @@ def build(check_only=False):
     dump(os.path.join(SITE, "data", "meta.json"), meta)
 
     # blinded coder queue: no official name, party, notes, or anyone's ratings
-    coder_q = [{k: p[k] for k in ("pledge_id", "state", "policy_area", "pledge_text", "source_type",
+    office_of = {o["official_id"]: o["office"] for o in officials}
+    coder_q = [{"office": office_of[p["official_id"]]} | {k: p[k] for k in ("pledge_id", "state", "policy_area", "pledge_text", "source_type",
                                   "source_url", "archive_url", "instrument", "requires_other_actor",
                                   "compound_group")} | {"review_flags": [f for f in p["review_flags"].split(";") if f]}
                for p in pledges]

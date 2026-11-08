@@ -7,3 +7,4 @@ snapshots/
 archive_progress.json
 __pycache__/
 .DS_Store
+*.bak

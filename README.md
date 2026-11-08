@@ -1,6 +1,6 @@
-# Governor Promise Tracker
+# Promise Tracker
 
-Tracks every specific campaign promise made by the 12 governors who won flipped or open seats in November 2026. Each promise gets three separate ratings: what happened, how hard the governor pushed, and what stood in the way.
+Tracks every specific campaign promise made by the 12 governors and 17 U.S. senators who won flipped or open seats in November 2026. Each promise gets three separate ratings: what happened, how hard the governor pushed, and what stood in the way.
 
 - **Public site:** `site/` (static, no build tools; deployed to GitHub Pages)
 - **Rating tool:** `site/coder/` (two reviewers rate independently, without seeing names, parties, or each other's ratings)
@@ -61,7 +61,8 @@ To continue on another computer, use **Load my ratings file** in the tool.
 - **Legislative control:** fill `data/power_context.csv` once 2027 control is certified. The site shows it on each governor's page.
 - **Inauguration dates:** fill `term_start` in `data/officials.csv`.
 - **Alaska:** the race is provisional until ranked-choice tabulation (Nov 18) and certification (Nov 25). If the result changes, update `data/officials.csv` and drop or replace the AK pledges.
-- **Evidence archiving:** `scripts/archive_sources.py` archives every `source_url` in a CSV. For evidence, export a CSV with the evidence links in a `source_url` column and run it the same way.
+- **Archiving sources:** `python3 scripts/archive_sources.py data/pledges.csv --in-place` archives every promise that has no `archive_url` yet and fills in the link, timestamp and fingerprint (keeps a `.bak`). Run it whenever you add promises.
+- **Senators** use office `Senator`, IDs like `S-TX`, and are rated effort-first (codebook Part 2b). Alaska and Mississippi Senate races were not called when the list was built; add them with the same rule if the winner is new to the seat.
 
 ## Before going public
 
