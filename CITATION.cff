@@ -8,7 +8,7 @@ authors:
     orcid: "https://orcid.org/0000-0002-7927-0745"
 doi: 10.5281/zenodo.24047632
 date-released: "2026-11-08"
-repository-code: "https://github.com/compbiolover/promise-tracker"
+repository-code: "https://github.com/compbiolover/pledge-ledger"
 url: "https://pledgeledger.org/"
 license: CC-BY-4.0
 keywords: [campaign promises, pledge fulfillment, governors, U.S. Senate, 2026 elections]
