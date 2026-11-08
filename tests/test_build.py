@@ -115,6 +115,100 @@ class Safety(unittest.TestCase):
         self.assertEqual(cited, {"https://a": 2, "https://b": 1})
 
 
+class ReviewerPool(unittest.TestCase):
+    PIDS = {f"X-{i}" for i in range(1, 601)}
+
+    def draw(self, **kw):
+        d = {"task": "status", "period_end": "2027-04-30", "reviewers": "ann;bob;cat;dan",
+             "seed": "abc123", "seed_source": "drand round 1"}
+        d.update(kw)
+        return d
+
+    def test_draw_is_reproducible_and_uses_pairs(self):
+        a, errs = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        b, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        self.assertEqual(errs, [])
+        self.assertEqual(a, b)
+        pairs = a[("status", "2027-04-30")]
+        self.assertTrue(all(len(set(p)) == 2 for p in pairs.values()))
+        self.assertEqual(len({tuple(p) for p in pairs.values()}), 6)  # all 6 pairs of 4 reviewers used
+        load = build.Counter(c for p in pairs.values() for c in p)
+        self.assertTrue(all(250 < n < 350 for n in load.values()), load)  # about half each
+
+    def test_seed_changes_draw(self):
+        a, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        b, _ = build.assignments_from_draws([self.draw(seed="other")], self.PIDS, [])
+        self.assertNotEqual(a, b)
+
+    def test_new_promise_does_not_move_others(self):
+        a, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        b, _ = build.assignments_from_draws([self.draw()], self.PIDS | {"Y-1"}, [])
+        k = ("status", "2027-04-30")
+        self.assertEqual({p: b[k][p] for p in a[k]}, a[k])
+
+    def test_only_drawn_pair_may_rate(self):
+        a, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        pair = a[("status", "2027-04-30")]["X-1"]
+        other = next(c for c in ("ann", "bob", "cat", "dan") if c not in pair)
+        ok = [ev("X-1", c, outcome="kept", effort="2") for c in pair]
+        _, errs = build.assignments_from_draws([self.draw()], self.PIDS, ok)
+        self.assertEqual(errs, [])
+        _, errs = build.assignments_from_draws([self.draw()], self.PIDS, [ev("X-1", other, outcome="kept", effort="2")])
+        self.assertTrue(any(f"{other} was not drawn for X-1" in e for e in errs))
+
+    def test_undrawn_round_is_open(self):
+        rs = [ev("X-1", "zed", outcome="kept", effort="2", period="2027-12-31")]
+        _, errs = build.assignments_from_draws([self.draw()], self.PIDS, rs)
+        self.assertEqual(errs, [])
+
+    def test_bad_draws(self):
+        bad = [self.draw(reviewers="ann"), self.draw(reviewers="ann;ann"), self.draw(seed=""),
+               self.draw(seed_source=""), self.draw(period_end=""), self.draw(task="x"),
+               self.draw(task="extraction", period_end="2027-04-30")]
+        for d in bad:
+            _, errs = build.assignments_from_draws([d], self.PIDS, [])
+            self.assertTrue(errs, d)
+        _, errs = build.assignments_from_draws([self.draw(), self.draw()], self.PIDS, [])
+        self.assertTrue(any("already has a draw" in e for e in errs))
+
+    def test_three_coders_on_one_promise_fails(self):
+        rs = [ev("X-1", c, outcome="kept", effort="2") for c in ("ann", "bob", "cat")]
+        _, _, errs = build.consensus(rs, [])
+        self.assertTrue(any("only two reviewers" in e for e in errs))
+
+    def test_pairs_keep_separate_kappa(self):
+        rs = [ev("X-1", "ann", outcome="kept", effort="2"), ev("X-1", "bob", outcome="kept", effort="2"),
+              ev("X-2", "cat", outcome="kept", effort="2"), ev("X-2", "dan", outcome="kept", effort="2")]
+        _, pairs, errs = build.consensus(rs, [])
+        self.assertEqual(errs, [])
+        self.assertIn(("status", "outcome", "ann", "bob"), pairs)
+        self.assertIn(("status", "outcome", "cat", "dan"), pairs)
+
+
+class Adjudicator(unittest.TestCase):
+    def adj(self, who):
+        return [{"pledge_id": "X-1", "task": "status", "period_end": "2027-04-30", "field": "outcome",
+                 "final_value": "partial", "adjudicator": who, "decided_at": "2027-05-04", "reason": "r"}]
+
+    def rs(self):
+        return [ev("X-1", "ann", outcome="partial", effort="2", blocker="budget"),
+                ev("X-1", "bob", outcome="broken", effort="2", blocker="budget")]
+
+    def test_rater_cannot_break_own_tie(self):
+        _, _, errs = build.consensus(self.rs(), self.adj("ann"))
+        self.assertTrue(any("must be someone else" in e for e in errs))
+
+    def test_outsider_can(self):
+        _, _, errs = build.consensus(self.rs(), self.adj("cat"))
+        self.assertEqual(errs, [])
+
+    def test_adjudicator_required(self):
+        off = [{"official_id": "X", "party": "D", "office": "Governor"}]
+        pl = [{"pledge_id": "X-1", "official_id": "X", "pledge_text": "t", "archive_url": "https://web.archive.org/x"}]
+        errs, _ = build.validate(off, pl, [], self.adj(" "), [])
+        self.assertTrue(any("needs an adjudicator" in e for e in errs))
+
+
 class Validation(unittest.TestCase):
     def setUp(self):
         self.off = [{"official_id": "X", "party": "D", "office": "Governor"}]

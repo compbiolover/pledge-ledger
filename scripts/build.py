@@ -6,6 +6,7 @@ Usage:  python3 scripts/build.py            (writes site/data/*.json and out/*.c
 
 Inputs (data/):
   officials.csv, pledges.csv, power_context.csv, adjudications.csv, corrections.csv, ratings/<coder>.csv
+  draws.csv (optional; public random draw of which two reviewers rate each promise, per review round)
   ../prereg/manifest.json (optional; once present, changed promises need a logged correction)
 Outputs:
   site/data/{officials,pledges,summary,reliability,meta,corrections}.json   public site
@@ -14,6 +15,7 @@ Outputs:
 """
 import csv
 import glob
+import hashlib
 import html
 import json
 import math
@@ -21,6 +23,7 @@ import os
 import re
 import sys
 from collections import Counter, defaultdict
+from itertools import combinations
 from datetime import date
 
 from freeze import pledge_hash
@@ -169,6 +172,8 @@ def validate(officials, pledges, ratings, adjudications, power):
             errors.append(f"adjudications: bad task/field {a['task']}/{a['field']} for {a['pledge_id']}")
         if not a["reason"].strip():
             errors.append(f"adjudications: {a['pledge_id']} {a['field']} needs a reason")
+        if not (a.get("adjudicator") or "").strip():
+            errors.append(f"adjudications: {a['pledge_id']} {a['field']} needs an adjudicator")
         v = a["final_value"]
         if a["field"] == "decision":
             ok = v in ("keep", "drop") or (v.startswith("merge:") and v[6:] in pids and v[6:] != a["pledge_id"])
@@ -182,6 +187,59 @@ def validate(officials, pledges, ratings, adjudications, power):
         if pc["official_id"] not in off_ids:
             errors.append(f"power_context: unknown official_id {pc['official_id']}")
     return errors, warnings
+
+
+CODER_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}$")  # same pattern as the rating tool's ID field
+
+
+def draw_pairs(seed, task, period, reviewers, pledge_ids):
+    """Each promise gets a pair of reviewers picked by a hash of the public seed.
+
+    A promise's pair depends only on the seed and its own ID, so adding a promise later never moves the others.
+    """
+    pairs = list(combinations(sorted(reviewers), 2))
+    out = {}
+    for pid in pledge_ids:
+        h = int(hashlib.sha256(f"{seed}|{task}|{period}|{pid}".encode()).hexdigest(), 16)
+        out[pid] = list(pairs[h % len(pairs)])
+    return out
+
+
+def assignments_from_draws(draws, pledge_ids, ratings):
+    """Validate draws.csv and return ({(task, period): {pid: [a, b]}}, errors).
+
+    A round with no draw is open to anyone; a drawn round may only be rated by each promise's pair.
+    """
+    errors, out = [], {}
+    for i, d in enumerate(draws, start=2):
+        where = f"draws.csv line {i}"
+        task, period = (d.get("task") or "").strip(), (d.get("period_end") or "").strip()
+        revs = [r.strip() for r in (d.get("reviewers") or "").split(";") if r.strip()]
+        seed = (d.get("seed") or "").strip()
+        if task not in TASKS:
+            errors.append(f"{where}: task must be one of {TASKS}")
+            continue
+        if task == "status" and not DATE_RE.match(period):
+            errors.append(f"{where}: status draws need period_end (YYYY-MM-DD)")
+        if task == "extraction" and period:
+            errors.append(f"{where}: extraction draws have no period_end")
+        if len(set(revs)) != len(revs) or len(revs) < 2 or not all(CODER_RE.match(r) for r in revs):
+            errors.append(f"{where}: reviewers must be two or more distinct IDs separated by ';'")
+            continue
+        if not seed or not (d.get("seed_source") or "").strip():
+            errors.append(f"{where}: seed and seed_source are required")
+            continue
+        if (task, period) in out:
+            errors.append(f"{where}: {task} {period} already has a draw")
+            continue
+        out[(task, period)] = draw_pairs(seed, task, period, revs, sorted(pledge_ids))
+    for r in ratings:
+        period = r["period_end"] if r["task"] == "status" else ""
+        pair = out.get((r["task"], period), {}).get(r["pledge_id"])
+        if pair and r["coder"] not in pair:
+            errors.append(f"{r['_file']} line {r['_line']}: {r['coder']} was not drawn for {r['pledge_id']} "
+                          f"({period or r['task']}); its reviewers are {' and '.join(pair)}")
+    return out, errors
 
 
 CORRECTION_KINDS = ("quote", "source", "rating", "metadata", "other")
@@ -274,6 +332,9 @@ def consensus(ratings, adjudications):
         pid, task, period = key
         coders = sorted(by_coder)
         res = {"coders": coders, "fields": {}}
+        if len(coders) > 2:  # kappa compares pairs; a third coder's ratings would be silently ignored
+            adj_errors.append(f"ratings: {pid} ({period or task}) was rated by {', '.join(coders)}; "
+                              "only two reviewers per promise. Add a draw to data/draws.csv")
         for field in FIELDS[task]:
             vals = {c: field_value(by_coder[c], field) for c in coders}
             a = adj.get((pid, task, period, field))
@@ -292,6 +353,9 @@ def consensus(ratings, adjudications):
             if a and state != "adjudicated":
                 adj_errors.append(f"adjudications: {pid} {field} ({period or task}) is {state}, not disputed; "
                                   "tie-breakers may only resolve disagreements between two coders")
+            if a and a["adjudicator"].strip() in coders:
+                adj_errors.append(f"adjudications: {pid} {field} ({period or task}) was decided by "
+                                  f"{a['adjudicator']}, who also rated it; the tie-breaker must be someone else")
             res["fields"][field] = {"state": state, "value": value,
                                     "reason": a["reason"] if a else ""}
         # evidence and notes: union from coders, only shown once outcome is final
@@ -424,8 +488,12 @@ def build(check_only=False):
     man_path = os.path.join(ROOT, "prereg", "manifest.json")
     manifest = json.load(open(man_path, encoding="utf-8")) if os.path.exists(man_path) else None
     ratings = load_ratings()
+    draws_path = os.path.join(DATA, "draws.csv")
+    draws = read_csv(draws_path) if os.path.exists(draws_path) else []
 
     errors, warnings = validate(officials, pledges, ratings, adjudications, power)
+    assigned, draw_errors = assignments_from_draws(draws, {p["pledge_id"] for p in pledges}, ratings)
+    errors += draw_errors
     errors += validate_corrections(corrections, {p["pledge_id"] for p in pledges})
     prereg, prereg_errors = check_prereg(pledges, manifest, corrections)
     errors += prereg_errors
@@ -579,7 +647,12 @@ def build(check_only=False):
                                   "compound_group")} | {"review_flags": [f for f in p["review_flags"].split(";") if f]}
                for p in pledges]
     dump(os.path.join(SITE, "coder", "pledges.json"),
-         {"codebook_version": CODEBOOK_VERSION, "pledges": coder_q})
+         {"codebook_version": CODEBOOK_VERSION, "pledges": coder_q,
+          # reviewer pairs per round, keyed "task|period_end"; a round not listed is open to anyone
+          "assignments": {f"{t}|{per}": a for (t, per), a in assigned.items()}})
+    for (t, per), a in sorted(assigned.items()):
+        load = Counter(c for pair in a.values() for c in pair)
+        print(f"Draw {t} {per}".rstrip() + ": " + ", ".join(f"{c} {n}" for c, n in sorted(load.items())))
 
     with open(os.path.join(OUT, "adjudication_queue.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
