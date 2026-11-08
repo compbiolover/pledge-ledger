@@ -2,84 +2,71 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24047632.svg)](https://doi.org/10.5281/zenodo.24047632)
 
-Tracks every specific campaign promise made by the 12 governors and 17 U.S. senators who won flipped or open seats in November 2026. Each promise gets three separate ratings: what happened, how hard the governor pushed, and what stood in the way.
+**Did they do what they said they would?** Pledge Ledger tracks the specific campaign promises of the 12 governors and 17 U.S. senators who won flipped or open seats in November 2026, and records what happens to each one while they are in office.
 
-- **Public site:** https://pledgeledger.org/ (built from `site/`: static, no build tools; deployed to GitHub Pages)
-- **Rating tool:** `site/coder/` (two reviewers rate independently, without seeing names, parties, or each other's ratings)
-- **Rules:** `codebook/CODEBOOK.md`
-- **Data:** `data/` (plain CSV; every rating is a row, nothing is overwritten)
+**Visit the site: [pledgeledger.org](https://pledgeledger.org/)**
 
-## How it fits together
+The project is modeled on Canada's Polimeter and the Comparative Party Pledges Project. It applies the same rules to both parties, and it fixed those rules in public before anyone took office.
+
+## What it tracks
+
+- **29 officials:** governors and senators elected in 2026 to a seat they did not already hold. The exact selection rules are in [`PREREGISTRATION.md`](PREREGISTRATION.md).
+- **About 1,300 promises,** each one quoted word for word from a campaign source dated before Election Day, with a saved copy on the Wayback Machine.
+
+## How promises are rated
+
+Each promise gets three separate ratings at fixed review dates (day 100, one year, the end of each legislative session, and the end of the term):
+
+| Rating | Question | Examples |
+|---|---|---|
+| **Outcome** | What happened? | kept, partially kept, in progress, broken |
+| **Effort** | How hard did the official push? | only talk, filed a bill, used a veto threat |
+| **Blocker** | If it wasn't kept, what stood in the way? | the legislature, the courts, the budget |
+
+Keeping these apart matters. A governor can fight hard for a promise and still lose, or get credit for something that passed without their help. A single senator rarely makes a law happen alone, so for senators effort is the headline and the outcome is shown second.
+
+Full definitions are in the [codebook](codebook/CODEBOOK.md).
+
+## Why you can trust the numbers
+
+- **Rules first, results later.** The list of officials, every promise and the rating rules were frozen on 2026-11-08, before any rating. The fingerprints are in [`prereg/manifest.json`](prereg/manifest.json), archived on [Zenodo](https://doi.org/10.5281/zenodo.24047633). Anyone can check that nothing changed after the fact.
+- **Two blind reviewers.** Two people rate every promise on their own. The rating tool hides the official's name and party, and neither reviewer sees the other's ratings. Only ratings they agree on are published. A third person settles disagreements and writes down why.
+- **Agreement is measured.** The site reports how often reviewers agreed (Cohen's kappa) for every field.
+- **Nothing is overwritten.** Every rating is a new row in a plain CSV file. Changes are logged on the site's [corrections page](https://pledgeledger.org/corrections.html).
+- **Uncertainty is shown.** Rates come with 95% intervals. With about a dozen officials per office, the project does not claim that one party is "better".
+
+## Project status
+
+The promise list is frozen. Status ratings start after each official takes office in early 2027. Until two reviewers have rated a promise, the site shows it as "Not yet rated".
+
+## Use the data
+
+Everything is in [`data/`](data/) as plain CSV:
+
+| File | What's in it |
+|---|---|
+| `officials.csv` | Who is tracked: office, state, party, term dates |
+| `pledges.csv` | Every promise: exact quote, source link, archive link, policy area |
+| `ratings/*.csv` | Each reviewer's ratings, one row per rating |
+| `adjudications.csv` | How disagreements between reviewers were settled |
+| `corrections.csv` | Every fix to a quote, source or rating |
+| `power_context.csv` | Which party controls each state legislature |
+
+## Spot a mistake?
+
+If a quote, source or rating looks wrong, [open a review request](https://github.com/compbiolover/pledge-ledger/issues/new?template=review.yml). Anyone can ask, including the officials' offices. Every request is answered in public, and any change is logged.
+
+## Run it yourself
+
+You need Python 3.9 or newer. There is nothing else to install.
 
 ```
-data/pledges.csv ─┐
-data/officials.csv├─► scripts/build.py ─► site/data/*.json  (public site)
-data/ratings/*.csv│        │          └─► site/coder/pledges.json (blinded queue)
-data/adjudications┘        └─► out/adjudication_queue.csv (disagreements)
-```
-
-`build.py` validates everything, works out what both reviewers agreed on, applies tie-breaker decisions, computes agreement (Cohen's kappa) and writes the JSON the site reads. Nothing from a single reviewer is ever published.
-
-## Share links
-
-`build.py` writes a static page for every person (`/people/<id>/`) and every promise (`/promises/<id>/`), plus `sitemap.xml`. Each carries its own title, description and preview image tags, so links shared in iMessage, WhatsApp, Signal, Slack and social apps show a proper card. Those crawlers don't run JavaScript, which is why the tags are written at build time. The preview image is `site/assets/og.png`. Pages use root-relative links (`/assets/...`), so the site must be served from the domain root.
-
-## Run it locally
-
-```
-python3 -m unittest discover -s tests     # tests
-python3 scripts/build.py                  # validate + build
+python3 -m unittest discover -s tests     # run the tests
+python3 scripts/build.py                  # check the data and build the site
 cd site && python3 -m http.server 8000    # open http://localhost:8000
 ```
 
-Python 3.9+ with no extra packages.
-
-## Publish on GitHub Pages (one time)
-
-```
-cd ~/promise-tracker/tracker
-git init -b main
-git add .
-git commit -m "Promise tracker: data, codebook, site, rating tool"
-gh repo create compbiolover/pledge-ledger --public --source . --push
-```
-
-Then on GitHub: **Settings, Pages, Build and deployment, Source: GitHub Actions**. Every push to `main` now runs the tests, rebuilds the data and redeploys the site.
-
-If you use a different repository name, change `REPO` at the top of `site/assets/app.js` and the codebook link in `site/coder/index.html`.
-
-## The review workflow
-
-**Now, before inauguration: check the promise list.** Each reviewer opens `/coder/`, picks "Check the promise list", and marks every promise keep, drop or merge, testable or not, and whether the quote matches the saved copy. Promises flagged `check_wording` deserve the closest look.
-
-**After inauguration: rate status at each review date** (day 100, one year, after each session, end of term).
-
-For both tasks:
-1. Each reviewer works alone and clicks **Download my ratings**.
-2. Commit the file as `data/ratings/<reviewer-id>.csv`. Use a pull request so the build checks it.
-3. The build lists disagreements in `out/adjudication_queue.csv` (also printed in the Actions log).
-4. A third person resolves each one by adding a row to `data/adjudications.csv` with a written reason.
-
-To continue on another computer, use **Load my ratings file** in the tool.
-
-## Adding data
-
-- **Legislative control:** fill `data/power_context.csv` once 2027 control is certified. The site shows it on each governor's page.
-- **Inauguration dates:** fill `term_start` in `data/officials.csv`.
-- **Alaska:** the race is provisional until ranked-choice tabulation (Nov 18) and certification (Nov 25). If the result changes, update `data/officials.csv` and drop or replace the AK pledges.
-- **Archiving sources:** `python3 scripts/archive_sources.py data/pledges.csv --in-place` archives every promise that has no `archive_url` yet and fills in the link, timestamp and fingerprint (keeps a `.bak`). Run it whenever you add promises.
-- **Senators** use office `Senator`, IDs like `S-TX`, and are rated effort-first (codebook Part 2b). Alaska and Mississippi Senate races were not called when the list was built; add them with the same rule if the winner is new to the seat.
-
-## Pre-registration and corrections
-
-- **Freeze (once, before any status rating):** `python3 scripts/freeze.py` writes `prereg/manifest.json` with fingerprints of the codebook, officials, `PREREGISTRATION.md` and every promise. Commit it and publish a GitHub release of that commit. If Zenodo is linked to the repo, the release also gets a DOI.
-- **After the freeze,** the build fails if a promise's official, wording or source changes without a matching `quote` or `source` row in `data/corrections.csv`. New promises are allowed and shown as "added after pre-registration". Other changes go under Amendments in `PREREGISTRATION.md`.
-- **Corrections log:** add a row to `data/corrections.csv` (`date,pledge_id,kind,what_changed,issue_url`; kind is quote, source, rating, metadata or other) for every fix. The site lists them on `corrections.html` and on the promise's page.
-- **Review requests** use the issue form in `.github/ISSUE_TEMPLATE/review.yml`, which labels them `appeal`.
-
-## Before going public
-
-- Recruit the second reviewer. Nothing gets rated without one.
+How the build works, how reviews are run and how to add data: [`docs/MAINTAINING.md`](docs/MAINTAINING.md).
 
 ## License
 
@@ -89,4 +76,4 @@ Data, codebook and site text: [CC BY 4.0](LICENSE-DATA.md). Code: [MIT](LICENSE)
 
 Willems, A. (2026). *Pledge Ledger: campaign promises of governors and senators elected in 2026* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.24047632
 
-The frozen pre-registration release is https://doi.org/10.5281/zenodo.24047633.
+Frozen pre-registration release: https://doi.org/10.5281/zenodo.24047633
