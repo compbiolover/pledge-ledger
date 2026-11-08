@@ -130,6 +130,55 @@ function statusSentence(s, office) {
   return `${s.n} promises. ${s.outcomes.kept} kept, ${s.outcomes.partial} partially kept, ${s.outcomes.in_progress} in progress, ${s.outcomes.broken} broken, ${s.outcomes.not_rated} not yet rated.`;
 }
 
+
+// Accessible tabs (WAI-ARIA pattern). The open tab is kept in the URL hash so it can be shared.
+function tabs(root, items, label) {
+  const want = location.hash.slice(1);
+  let cur = items.some((t) => t.id === want) ? want : items[0].id;
+  root.innerHTML = `<div class="tabs" role="tablist" aria-label="${esc(label)}">${items.map((t) =>
+    `<button type="button" role="tab" id="tab-${t.id}" aria-controls="panel-${t.id}">${t.label}</button>`).join("")}</div>
+    ${items.map((t) => `<div role="tabpanel" id="panel-${t.id}" aria-labelledby="tab-${t.id}" tabindex="0">${t.html}</div>`).join("")}`;
+  const btns = [...root.querySelectorAll('[role="tab"]')];
+  const show = (id, focus) => {
+    cur = id;
+    btns.forEach((b) => { const on = b.id === `tab-${id}`; b.setAttribute("aria-selected", on); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+    items.forEach((t) => { $(`#panel-${t.id}`, root).hidden = t.id !== id; });
+    history.replaceState(null, "", `${location.pathname}${location.search}#${id}`);
+  };
+  btns.forEach((b, i) => {
+    b.addEventListener("click", () => show(items[i].id));
+    b.addEventListener("keydown", (e) => {
+      const k = { ArrowRight: 1, ArrowLeft: -1, Home: -i, End: btns.length - 1 - i }[e.key];
+      if (k === undefined) return;
+      e.preventDefault();
+      show(items[(i + k + btns.length) % btns.length].id, true);
+    });
+  });
+  show(cur);
+  items.forEach((t) => t.init?.($(`#panel-${t.id}`, root)));
+}
+
+// One bar per person: status shares instead of a tile per promise, so every card is the same height.
+function statusBar(pledges) {
+  const n = pledges.length || 1;
+  const counts = OUTCOME_ORDER.map((o) => [o, pledges.filter((p) => p.current.outcome === o).length]).filter(([, c]) => c);
+  return `<div class="sbar" role="img" aria-label="${esc(counts.map(([o, c]) => `${c} ${OUTCOME[o].toLowerCase()}`).join(", "))}">${counts.map(([o, c]) =>
+    `<span class="s-${safeStatus(o)}" style="width:${(100 * c / n).toFixed(2)}%"></span>`).join("")}</div>`;
+}
+
+function backToTop() {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "to-top"; b.hidden = true; b.textContent = "Back to top";
+  b.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    ($("h1") || $("main")).focus?.({ preventScroll: true });
+  });
+  document.body.append(b);
+  const onScroll = () => { b.hidden = window.scrollY < window.innerHeight * 1.5; };
+  addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+}
+
 // ---------- pages ----------
 async function home() {
   const [officials, pledges, meta] = await Promise.all([load("officials"), load("pledges"), load("meta")]);
@@ -142,27 +191,49 @@ async function home() {
     <div><dt>Senators</dt><dd class="num">${count("Senator")}</dd></div>
     <div><dt>Rated so far</dt><dd class="num">${rated}<small>${rated ? `as of ${fmtDate(meta.latest_period)}` : "First ratings after January 2027"}</small></dd></div>`;
   $("#legend").innerHTML = legend();
-  $("#roster").innerHTML = Object.entries(OFFICE).map(([office, cfg]) => {
-    const inOffice = officials.filter((o) => o.office === office);
-    if (!inOffice.length) return "";
-    const n = inOffice.reduce((a, o) => a + o.summary.n, 0);
-    return `<section aria-labelledby="h-${office}"><h2 class="office-head" id="h-${office}">${cfg.plural} <span class="muted small num">${inOffice.length} people, ${n} promises</span></h2>
-    ${office === "Senator" ? `<p class="small muted">A senator can rarely pass a law alone, so senators are rated first on what they did, then on what happened.</p>` : ""}
-    ${cfg.groups.map(([cohort, title]) => {
-      const offs = inOffice.filter((o) => o.cohort === cohort);
-      if (!offs.length) return "";
-      return `<div class="group-head"><h3>${title}</h3><span class="muted small num">${offs.length} ${offs.length === 1 ? cfg.title : cfg.title + "s"}, ${offs.reduce((a, o) => a + o.summary.n, 0)} promises</span></div>
-      <ul class="roster">${offs.map((o) => {
+  const people = (office) => officials.filter((o) => o.office === office);
+  const items = Object.entries(OFFICE).filter(([office]) => people(office).length).map(([office, cfg]) => ({
+    id: cfg.plural.toLowerCase(),
+    label: `${cfg.plural} <span class="num">${people(office).length}</span>`,
+    html: `${office === "Senator" ? `<p class="small muted">A senator can rarely pass a law alone, so senators are rated first on what they did, then on what happened.</p>` : ""}
+      <form class="filters filters-slim" role="search" onsubmit="return false">
+        <label>Find a person or state<input type="search" data-f="q" placeholder="e.g. Ohio, Cooper"></label>
+        <label>Party<select data-f="party"><option value="">Both</option><option value="D">Democrats</option><option value="R">Republicans</option></select></label>
+        <label>Sort<select data-f="sort"><option value="group">How they won</option><option value="name">Name</option><option value="state">State</option><option value="n">Most promises</option></select></label>
+      </form>
+      <p class="count" aria-live="polite" data-f="count"></p>
+      <div data-f="out"></div>`,
+    init(panel) {
+      const f = (k) => $(`[data-f="${k}"]`, panel);
+      const card = (o) => {
         const mine = active.filter((p) => p.official_id === o.official_id);
-        return `<li>
-          <div class="who"><a href="official.html?id=${encodeURIComponent(o.official_id)}">${esc(o.name)}</a>
-            <span class="meta">${esc(o.state_name)} (${o.party})${o.provisional === "Y" ? ". Race not final" : ""}</span></div>
-          ${strip(mine)}
-          <p class="strip-note">${statusSentence(o.summary, o.office)} <a href="official.html?id=${encodeURIComponent(o.official_id)}">See ${esc(o.name.split(" ").slice(-1)[0])}'s promises</a></p>
+        const href = `official.html?id=${encodeURIComponent(o.official_id)}`;
+        return `<li class="pcard">
+          <a class="pcard-name" href="${href}">${esc(o.name)}</a>
+          <span class="meta">${esc(o.state_name)} · ${o.party === "D" ? "Democrat" : o.party === "R" ? "Republican" : esc(o.party)}${o.provisional === "Y" ? " · race not final" : ""}</span>
+          ${statusBar(mine)}
+          <span class="pcard-note">${statusSentence(o.summary, o.office)}</span>
         </li>`;
-      }).join("")}</ul>`;
-    }).join("")}</section>`;
-  }).join("");
+      };
+      const render = () => {
+        const q = f("q").value.trim().toLowerCase(), party = f("party").value, sort = f("sort").value;
+        const list = people(office).filter((o) => (!party || o.party === party)
+          && (!q || `${o.name} ${o.state_name} ${o.state}`.toLowerCase().includes(q)));
+        const by = { name: (a, b) => a.name.split(" ").pop().localeCompare(b.name.split(" ").pop()),
+          state: (a, b) => a.state_name.localeCompare(b.state_name), n: (a, b) => b.summary.n - a.summary.n }[sort];
+        f("count").textContent = list.length === people(office).length ? "" : `Showing ${list.length} of ${people(office).length}`;
+        f("out").innerHTML = !list.length ? `<p>No one matches. Try a different name or state.</p>`
+          : sort === "group" ? cfg.groups.map(([cohort, title]) => {
+            const g = list.filter((o) => o.cohort === cohort);
+            return g.length ? `<h3 class="group-title">${title} <span class="muted small num">${g.length}</span></h3><ul class="cards">${g.map(card).join("")}</ul>` : "";
+          }).join("")
+          : `<ul class="cards">${[...list].sort(by).map(card).join("")}</ul>`;
+      };
+      ["q", "party", "sort"].forEach((k) => f(k).addEventListener(k === "q" ? "input" : "change", render));
+      render();
+    },
+  }));
+  tabs($("#roster"), items, "Office");
 }
 
 function filterBar(pledges, officials, opts = {}) {
@@ -254,7 +325,12 @@ async function official() {
     </dl>
     ${legend()}
     ${strip(mine)}
-    <h2>Effort and results</h2>
+    <div id="gov-tabs"></div>`;
+  tabs($("#gov-tabs"), [
+    { id: "promises", label: `Promises <span class="num">${mine.length}</span>`, html: `<h2 class="sr-only">Every promise</h2><div id="browse"></div>`,
+      init: () => { $("#browse").innerHTML = filterBar(mine, officials, { noGovernor: true }); } },
+    { id: "results", label: "Effort and results", html: `
+    <h2 class="sr-only">Effort and results</h2>
     <p>${senate ? "A senator can rarely make a law happen alone, so effort comes first: did they introduce, vote, and push for what they promised? What actually happened is shown alongside." : "Each promise gets two separate ratings: what happened, and how hard the governor pushed."} Reading them together separates a promise that was fought for and blocked from one that was never tried.</p>
     <div class="eo" role="table" aria-label="Promises by effort and outcome">
       <div class="h" role="columnheader"></div><div class="h" role="columnheader">Low effort</div><div class="h" role="columnheader">High effort</div><div class="h" role="columnheader">Effort under review</div>
@@ -266,14 +342,17 @@ async function official() {
         <div class="cell" role="cell">${cell("open", "low")}</div><div class="cell" role="cell">${cell("open", "high")}</div><div class="cell" role="cell">${cell("open", "unrated")}</div>
     </div>
     <p class="small muted">Low effort means no action or talk only. High effort means a formal step or more. ${cell("kept", "undermined") + cell("not_kept", "undermined") + cell("open", "undermined")} promises were undermined by the ${cfg.title}'s own actions.</p>
-    <h2>${senate ? "Power in Congress" : "Power in the statehouse"}</h2>
+` },
+    { id: "topics", label: "By topic", html: `
+    <h2 class="sr-only">Promises by topic</h2>
+    <div class="table-wrap"><table><thead><tr><th>Topic</th><th class="n">Promises</th><th class="n">Kept or partly</th></tr></thead><tbody>${areaRows}</tbody></table></div>
+` },
+    { id: "context", label: senate ? "Power in Congress" : "Power in the statehouse", html: `
+    <h2 class="sr-only">${senate ? "Power in Congress" : "Power in the statehouse"}</h2>
     ${o.power_context.length ? `<div class="table-wrap"><table><thead><tr><th>Session</th><th>Trifecta</th><th>House majority</th><th>Senate majority</th><th>Veto override</th></tr></thead><tbody>${o.power_context.map((pc) => `<tr><td>${esc(pc.session)}</td><td>${esc(pc.trifecta)}</td><td>${esc(pc.house_majority)}</td><td>${esc(pc.senate_majority)}</td><td>${esc(pc.veto_override_threshold)}</td></tr>`).join("")}</tbody></table></div>`
       : `<div class="notice"><p>${senate ? "Control of the Senate, the House and the White House for the 2027 session will be added once results are certified. A senator in the majority can get votes scheduled; one in the minority mostly can't." : "Legislative control for the 2027 session will be added once results are certified. Whether a governor's party controls the legislature changes what they can deliver."}</p></div>`}
-    <h2>Promises by topic</h2>
-    <div class="table-wrap"><table><thead><tr><th>Topic</th><th class="n">Promises</th><th class="n">Kept or partly</th></tr></thead><tbody>${areaRows}</tbody></table></div>
-    <h2>Every promise</h2>
-    <div id="browse"></div>`;
-  $("#browse").innerHTML = filterBar(mine, officials, { noGovernor: true });
+` },
+  ], "Sections");
   wireList(mine, officials, o.official_id);
 }
 
@@ -408,6 +487,7 @@ async function corrections() {
   $("#review-link").href = issueUrl();
 }
 
+backToTop();
 const pages = { home, promises, official, governor: official, promise, compare, methods, corrections };
 const page = document.body.dataset.page;
 (pages[page] || (async () => {}))().catch((e) => {
