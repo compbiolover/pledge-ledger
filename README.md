@@ -4,7 +4,7 @@
 
 Tracks every specific campaign promise made by the 12 governors and 17 U.S. senators who won flipped or open seats in November 2026. Each promise gets three separate ratings: what happened, how hard the governor pushed, and what stood in the way.
 
-- **Public site:** `site/` (static, no build tools; deployed to GitHub Pages)
+- **Public site:** https://pledgeledger.org/ (built from `site/`: static, no build tools; deployed to GitHub Pages)
 - **Rating tool:** `site/coder/` (two reviewers rate independently, without seeing names, parties, or each other's ratings)
 - **Rules:** `codebook/CODEBOOK.md`
 - **Data:** `data/` (plain CSV; every rating is a row, nothing is overwritten)

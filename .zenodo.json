@@ -9,6 +9,6 @@
   "access_right": "open",
   "keywords": ["campaign promises", "pledge fulfillment", "governors", "U.S. Senate", "2026 elections"],
   "related_identifiers": [
-    {"identifier": "https://compbiolover.github.io/promise-tracker/", "relation": "isDocumentedBy", "resource_type": "other"}
+    {"identifier": "https://pledgeledger.org/", "relation": "isDocumentedBy", "resource_type": "other"}
   ]
 }
