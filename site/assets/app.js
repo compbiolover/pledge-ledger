@@ -75,6 +75,7 @@ const FLAG = {
   pre_election_mismatch: "Differs from the copy saved before Election Day; under review",
   not_own_commitment: "Says what should happen, not what they will do; under review",
   possibly_already_done: "May already have happened before they took office",
+  source_unavailable: "Original page is gone and was never archived; quote corroborated elsewhere",
 };
 const COHORT = { D_flip: "Democrat, flipped a Republican-held seat", D_open_seat: "Democrat, won an open seat", R_open_seat: "Republican, won an open seat" };
 const OFFICE = {
