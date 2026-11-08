@@ -28,7 +28,7 @@ function persist(obj) {
 }
 const recKey = (r) => `${r.coder}|${r.task}|${r.period_end}|${r.pledge_id}`;
 
-let Q = [], codebookVersion = "1.0", S = { coder: "", task: "extraction", period: "", order: [], i: 0 };
+let Q = [], draws = {}, codebookVersion = "1.0", S = { coder: "", task: "extraction", period: "", order: [], i: 0 };
 
 // deterministic per-coder shuffle so the two reviewers see promises in different orders
 function seededOrder(n, seed) {
@@ -66,7 +66,7 @@ function render() {
   const order = visibleOrder();
   if (!S.order.length) {
     $("#card").innerHTML = `<div class="card"><h2 style="margin-top:0">No promises are assigned to you</h2>
-      <p>Every promise is assigned to other reviewers in <code>data/assignments.csv</code>. Check your reviewer ID, or ask the project lead to assign you some.</p></div>`;
+      <p>You aren't in the reviewer draw for this round in <code>data/draws.csv</code>. Check your reviewer ID and the review date.</p></div>`;
     progress();
     return;
   }
@@ -229,8 +229,9 @@ $("#setup-form").addEventListener("submit", (e) => {
   S.period = $("#period").value;
   if (S.task === "status" && !S.period) { $("#period").focus(); return; }
   if (!hasBase(S.coder)) { askBase(); return; }
-  // a promise with no assignment is open to everyone; otherwise only its two assigned reviewers see it
-  const mineIx = [...Q.keys()].filter((ix) => !Q[ix].assigned_to?.length || Q[ix].assigned_to.includes(S.coder));
+  // a round with no draw is open to everyone; otherwise each promise goes only to its two drawn reviewers
+  const pairs = draws[`${S.task}|${S.task === "status" ? S.period : ""}`];
+  const mineIx = [...Q.keys()].filter((ix) => !pairs || pairs[Q[ix].pledge_id]?.includes(S.coder));
   S.order = seededOrder(mineIx.length, S.coder).map((j) => mineIx[j]);
   S.i = 0;
   try { localStorage.setItem("pt-last-coder", S.coder); } catch { /* storage unavailable */ }
@@ -266,7 +267,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 fetch("pledges.json").then((r) => r.json()).then((d) => {
-  Q = d.pledges; codebookVersion = d.codebook_version;
+  Q = d.pledges; draws = d.assignments || {}; codebookVersion = d.codebook_version;
   const dl = document.createElement("datalist"); dl.id = "ids";
   dl.innerHTML = Q.map((p) => `<option value="${esc(p.pledge_id)}">`).join("");
   document.body.append(dl);

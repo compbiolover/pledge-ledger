@@ -116,37 +116,60 @@ class Safety(unittest.TestCase):
 
 
 class ReviewerPool(unittest.TestCase):
-    PIDS = {"X-1", "X-2"}
+    PIDS = {f"X-{i}" for i in range(1, 601)}
 
-    def asg(self, *rows):
-        return [{"pledge_id": p, "coder": c} for p, c in rows]
+    def draw(self, **kw):
+        d = {"task": "status", "period_end": "2027-04-30", "reviewers": "ann;bob;cat;dan",
+             "seed": "abc123", "seed_source": "drand round 1"}
+        d.update(kw)
+        return d
 
-    def test_assigned_pair_may_rate(self):
-        rs = [ev("X-1", "ann", outcome="kept", effort="2"), ev("X-1", "bob", outcome="kept", effort="2")]
-        errs, by_pid = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob")), self.PIDS, rs)
+    def test_draw_is_reproducible_and_uses_pairs(self):
+        a, errs = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        b, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
         self.assertEqual(errs, [])
-        self.assertEqual(by_pid["X-1"], ["ann", "bob"])
+        self.assertEqual(a, b)
+        pairs = a[("status", "2027-04-30")]
+        self.assertTrue(all(len(set(p)) == 2 for p in pairs.values()))
+        self.assertEqual(len({tuple(p) for p in pairs.values()}), 6)  # all 6 pairs of 4 reviewers used
+        load = build.Counter(c for p in pairs.values() for c in p)
+        self.assertTrue(all(250 < n < 350 for n in load.values()), load)  # about half each
 
-    def test_unassigned_coder_rejected(self):
-        rs = [ev("X-1", "cat", outcome="kept", effort="2")]
-        errs, _ = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob")), self.PIDS, rs)
-        self.assertTrue(any("cat is not assigned to X-1" in e for e in errs))
+    def test_seed_changes_draw(self):
+        a, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        b, _ = build.assignments_from_draws([self.draw(seed="other")], self.PIDS, [])
+        self.assertNotEqual(a, b)
 
-    def test_unassigned_promise_is_open(self):
-        rs = [ev("X-2", "cat", outcome="kept", effort="2")]
-        errs, _ = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob")), self.PIDS, rs)
+    def test_new_promise_does_not_move_others(self):
+        a, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        b, _ = build.assignments_from_draws([self.draw()], self.PIDS | {"Y-1"}, [])
+        k = ("status", "2027-04-30")
+        self.assertEqual({p: b[k][p] for p in a[k]}, a[k])
+
+    def test_only_drawn_pair_may_rate(self):
+        a, _ = build.assignments_from_draws([self.draw()], self.PIDS, [])
+        pair = a[("status", "2027-04-30")]["X-1"]
+        other = next(c for c in ("ann", "bob", "cat", "dan") if c not in pair)
+        ok = [ev("X-1", c, outcome="kept", effort="2") for c in pair]
+        _, errs = build.assignments_from_draws([self.draw()], self.PIDS, ok)
+        self.assertEqual(errs, [])
+        _, errs = build.assignments_from_draws([self.draw()], self.PIDS, [ev("X-1", other, outcome="kept", effort="2")])
+        self.assertTrue(any(f"{other} was not drawn for X-1" in e for e in errs))
+
+    def test_undrawn_round_is_open(self):
+        rs = [ev("X-1", "zed", outcome="kept", effort="2", period="2027-12-31")]
+        _, errs = build.assignments_from_draws([self.draw()], self.PIDS, rs)
         self.assertEqual(errs, [])
 
-    def test_needs_exactly_two(self):
-        one, _ = build.validate_assignments(self.asg(("X-1", "ann")), self.PIDS, [])
-        three, _ = build.validate_assignments(self.asg(("X-1", "ann"), ("X-1", "bob"), ("X-1", "cat")), self.PIDS, [])
-        self.assertTrue(any("exactly two" in e for e in one))
-        self.assertTrue(any("exactly two" in e for e in three))
-
-    def test_bad_rows(self):
-        errs, _ = build.validate_assignments(self.asg(("Z-9", "ann"), ("X-1", "ann"), ("X-1", "ann")), self.PIDS, [])
-        self.assertTrue(any("unknown pledge_id Z-9" in e for e in errs))
-        self.assertTrue(any("listed twice" in e for e in errs))
+    def test_bad_draws(self):
+        bad = [self.draw(reviewers="ann"), self.draw(reviewers="ann;ann"), self.draw(seed=""),
+               self.draw(seed_source=""), self.draw(period_end=""), self.draw(task="x"),
+               self.draw(task="extraction", period_end="2027-04-30")]
+        for d in bad:
+            _, errs = build.assignments_from_draws([d], self.PIDS, [])
+            self.assertTrue(errs, d)
+        _, errs = build.assignments_from_draws([self.draw(), self.draw()], self.PIDS, [])
+        self.assertTrue(any("already has a draw" in e for e in errs))
 
     def test_three_coders_on_one_promise_fails(self):
         rs = [ev("X-1", c, outcome="kept", effort="2") for c in ("ann", "bob", "cat")]

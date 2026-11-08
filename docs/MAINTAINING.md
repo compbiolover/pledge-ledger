@@ -36,16 +36,26 @@ For both tasks:
 3. The build lists disagreements in `out/adjudication_queue.csv` (also printed in the Actions log).
 4. A third person resolves each one by adding a row to `data/adjudications.csv` with a written reason. The tie-breaker must not be one of the two people who rated that promise; the build fails if they are.
 
-### More than two reviewers
+### More than two reviewers: the public draw
 
-Each promise is still rated by exactly two people. With a larger pool, list who rates what in `data/assignments.csv`, one row per reviewer per promise (`pledge_id,coder`).
+Each promise is still rated by exactly two people. With a larger pool, a random draw decides who rates what. No one picks the pairs by hand, including the maintainer.
 
-- A promise with no rows is open to anyone. A promise with rows needs exactly two, and only those two may rate it.
-- The rating tool shows each reviewer only the promises open to them.
-- The build fails if three people rate the same promise, because agreement is measured between two.
-- Agreement is reported for each pair of reviewers separately.
-- Give every pair a random mix of promises from both parties and all states, so no pair rates only one party.
-- The file is public, so reviewers can see who they're paired with. Remind them to work alone anyway.
+1. **Announce the draw first.** Open a public issue that lists the reviewer IDs and the review round (extraction, or the review date). Name a future round of the [drand](https://drand.love) public randomness beacon as the seed. Pick a round at least a day after the issue is posted, so no one knows its value yet.
+2. **Wait for that round,** then copy its `randomness` value.
+3. **Add one row to `data/draws.csv`** through a pull request that links the issue:
+   `task,period_end,reviewers,seed,seed_source`, for example
+   `status,2027-04-30,ann;bob;cat,<randomness>,drand round <n> (issue #<number>)`.
+4. The build works out each promise's pair from the seed and prints how many promises each reviewer got. Anyone can rerun it and get the same pairs.
+
+Rules the build enforces:
+
+- Add the draw before anyone starts that round. Once a round has a draw, only each promise's two drawn reviewers may rate it, and ratings can't be deleted.
+- A round with no draw is open to anyone, which is fine with exactly two reviewers.
+- Three people rating the same promise fails the build, because agreement is measured between two.
+- Each draw is for one round. A later round can use a different pool.
+- A promise's pair depends only on the seed and its ID. Adding a promise later doesn't change anyone else's assignments.
+
+Each pair gets a random mix of both parties' promises. Reviewers can see who they're paired with, since the draw is public. Remind them to work alone anyway.
 
 To continue on another computer, use **Load my ratings file** in the tool.
 

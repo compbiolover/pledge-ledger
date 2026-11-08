@@ -33,6 +33,7 @@ Full definitions are in the [codebook](codebook/CODEBOOK.md).
 - **Two blind reviewers.** Two people rate every promise on their own. The rating tool hides the official's name and party, and neither reviewer sees the other's ratings. Only ratings they agree on are published. A third person settles disagreements and writes down why.
 - **Agreement is measured.** The site reports how often reviewers agreed (Cohen's kappa) for every field.
 - **Nothing is overwritten.** Every rating is a new row in a plain CSV file. Changes are logged on the site's [corrections page](https://pledgeledger.org/corrections.html).
+- **No one picks who rates what.** With more than two reviewers, a public random draw decides which two rate each promise. Anyone can rerun it.
 - **Uncertainty is shown.** Rates come with 95% intervals. With about a dozen officials per office, the project does not claim that one party is "better".
 
 ## Project status
@@ -49,7 +50,7 @@ Everything is in [`data/`](data/) as plain CSV:
 | `pledges.csv` | Every promise: exact quote, source link, archive link, policy area |
 | `ratings/*.csv` | Each reviewer's ratings, one row per rating |
 | `adjudications.csv` | How disagreements between reviewers were settled |
-| `assignments.csv` | Which two reviewers rate each promise, when there are more than two |
+| `draws.csv` | The public random draws that pick which two reviewers rate each promise |
 | `corrections.csv` | Every fix to a quote, source or rating |
 | `power_context.csv` | Which party controls each state legislature |
 
