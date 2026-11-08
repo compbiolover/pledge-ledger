@@ -66,6 +66,4 @@ To continue on another computer, use **Load my ratings file** in the tool.
 
 ## Before going public
 
-- Add a short disclosure (who runs this, your politics, any funding) at the bottom of `site/methods.html`; there is a comment marking the spot.
 - Recruit the second reviewer. Nothing gets rated without one.
-- Snapshots of campaign pages (`snapshots/`) stay out of the public repo. The Wayback links and SHA-256 fingerprints are published instead.
