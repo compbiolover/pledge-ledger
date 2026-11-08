@@ -1,0 +1,14 @@
+{
+  "upload_type": "dataset",
+  "title": "Promise Tracker: campaign promises of governors and senators elected in 2026",
+  "description": "<p>Every specific campaign promise made by the 12 governors and 17 U.S. senators who won flipped or open seats in November 2026, collected from campaign sources before Election Day and archived to the Wayback Machine, together with the codebook used to rate them. Promises are rated at fixed review dates on outcome, effort and blocker by two independent reviewers.</p><p>This release is the pre-registration: the officials, promises and codebook were frozen before any official took office or any rating was made. SHA-256 fingerprints are in prereg/manifest.json.</p><p>Data and codebook are licensed CC BY 4.0; code is MIT. Quoted campaign promises remain the property of their authors.</p>",
+  "creators": [
+    {"name": "Willems, Andrew", "orcid": "0000-0002-7927-0745"}
+  ],
+  "license": "cc-by-4.0",
+  "access_right": "open",
+  "keywords": ["campaign promises", "pledge fulfillment", "governors", "U.S. Senate", "2026 elections"],
+  "related_identifiers": [
+    {"identifier": "https://compbiolover.github.io/promise-tracker/", "relation": "isDocumentedBy", "resource_type": "other"}
+  ]
+}
