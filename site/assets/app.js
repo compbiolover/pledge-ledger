@@ -1,4 +1,4 @@
-// Promise Tracker public site. No build step, no dependencies.
+// Pledge Ledger public site. No build step, no dependencies.
 // Edit REPO if the GitHub repository has a different name.
 const REPO = "compbiolover/promise-tracker";
 
@@ -91,9 +91,14 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const params = new URLSearchParams(location.search);
+// Share pages like /people/s-nc/ carry the id on <body>; the older ?id= links still work.
+const pageId = () => params.get("id") || document.body.dataset.id || "";
+const slug = (id) => encodeURIComponent(String(id).toLowerCase());
+const personUrl = (id) => `/people/${slug(id)}/`;
+const promiseUrl = (id) => `/promises/${slug(id)}/`;
 const cache = {};
 async function load(name) {
-  if (!cache[name]) cache[name] = fetch(`data/${name}.json`).then((r) => {
+  if (!cache[name]) cache[name] = fetch(`/data/${name}.json`).then((r) => {
     if (!r.ok) throw new Error(`Could not load ${name}.json (${r.status})`);
     return r.json();
   });
@@ -118,7 +123,7 @@ const legend = () => `<ul class="legend" aria-label="Status key">${OUTCOME_ORDER
 
 function strip(pledges) {
   return `<div class="strip" aria-hidden="true">${[...pledges].sort(byStatus).map((p) =>
-    `<a class="s-${safeStatus(p.current.outcome)}" href="promise.html?id=${encodeURIComponent(p.pledge_id)}" tabindex="-1"
+    `<a class="s-${safeStatus(p.current.outcome)}" href="${promiseUrl(p.pledge_id)}" tabindex="-1"
       title="${esc(`${OUTCOME[p.current.outcome]}. ${AREA[p.policy_area] || p.policy_area}: ${p.pledge_text.slice(0, 110)}${p.pledge_text.length > 110 ? "…" : ""}`)}"></a>`).join("")}</div>`;
 }
 
@@ -179,6 +184,22 @@ function backToTop() {
   onScroll();
 }
 
+// Share: the phone's share sheet where there is one, otherwise copy the clean link.
+const shareBtn = (url, title) => `<p class="share-row"><button type="button" class="share" data-url="${esc(new URL(url, location.origin).href)}" data-title="${esc(title)}">Share</button> <span class="small muted" role="status"></span></p>`;
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest(".share");
+  if (!b) return;
+  const note = b.nextElementSibling;
+  const { url, title } = b.dataset;
+  try {
+    if (navigator.share) { await navigator.share({ title, url }); return; }
+    await navigator.clipboard.writeText(url);
+    note.textContent = "Link copied";
+  } catch (err) {
+    if (err?.name !== "AbortError") note.textContent = url;
+  }
+});
+
 // ---------- pages ----------
 async function home() {
   const [officials, pledges, meta] = await Promise.all([load("officials"), load("pledges"), load("meta")]);
@@ -207,7 +228,7 @@ async function home() {
       const f = (k) => $(`[data-f="${k}"]`, panel);
       const card = (o) => {
         const mine = active.filter((p) => p.official_id === o.official_id);
-        const href = `official.html?id=${encodeURIComponent(o.official_id)}`;
+        const href = personUrl(o.official_id);
         return `<li class="pcard">
           <a class="pcard-name" href="${href}">${esc(o.name)}</a>
           <span class="meta">${esc(o.state_name)} · ${o.party === "D" ? "Democrat" : o.party === "R" ? "Republican" : esc(o.party)}${o.provisional === "Y" ? " · race not final" : ""}</span>
@@ -272,7 +293,7 @@ function wireList(all, officials, scopeGov) {
         <div class="row">${chip(p.current.outcome)}
           ${scopeGov ? "" : `<span>${esc(o.name)} (${o.state})</span>`}
           <span>${esc(AREA[p.policy_area] || p.policy_area)}</span>
-          <a href="promise.html?id=${encodeURIComponent(p.pledge_id)}">Details for ${esc(p.pledge_id)}</a></div>
+          <a href="${promiseUrl(p.pledge_id)}">Details for ${esc(p.pledge_id)}</a></div>
       </li>`;
     }).join("") || `<li><p>No promises match. Try fewer words, or set a filter back to All.</p></li>`;
     $("#more").hidden = list.length <= shown;
@@ -298,9 +319,9 @@ async function promises() {
 
 async function official() {
   const [officials, pledges] = await Promise.all([load("officials"), load("pledges")]);
-  const o = officials.find((x) => x.official_id === params.get("id"));
-  if (!o) { $("#gov-main").innerHTML = `<h1>Not found</h1><p><a href="index.html">Go back to everyone we track</a>.</p>`; return; }
-  document.title = `${o.name}'s promises | Promise Tracker`;
+  const o = officials.find((x) => x.official_id.toLowerCase() === pageId().toLowerCase());
+  if (!o) { $("#gov-main").innerHTML = `<h1>Not found</h1><p><a href="/">Go back to everyone we track</a>.</p>`; return; }
+  document.title = `${o.name}'s promises | Pledge Ledger`;
   const cfg = OFFICE[o.office] || OFFICE.Governor;
   const senate = o.office === "Senator";
   const mine = pledges.filter((p) => p.official_id === o.official_id && p.active)
@@ -314,9 +335,10 @@ async function official() {
     return `<tr><td>${esc(AREA[a] || a)}</td><td class="n">${n}</td><td class="n">${s.rated ? k : "—"}</td></tr>`;
   }).join("");
   $("#gov-main").innerHTML = `
-    <p class="crumbs"><a href="index.html">Everyone we track</a></p>
+    <p class="crumbs"><a href="/">Everyone we track</a></p>
     <h1>${esc(o.name)}</h1>
     <p class="lead">${cfg.elect} ${esc(o.state_name)}. ${esc(COHORT[o.cohort] || "")}.${o.provisional === "Y" ? ` <strong>The race is not final:</strong> ${esc(o.notes)}.` : ""}</p>
+    ${shareBtn(personUrl(o.official_id), `${o.name}'s campaign promises`)}
     <dl class="facts">
       <div><dt>Promises tracked</dt><dd class="num">${s.n}</dd></div>
       <div><dt>Rated</dt><dd class="num">${s.rated}</dd></div>
@@ -358,11 +380,11 @@ async function official() {
 
 async function promise() {
   const [officials, pledges] = await Promise.all([load("officials"), load("pledges")]);
-  const p = pledges.find((x) => x.pledge_id === params.get("id"));
+  const p = pledges.find((x) => x.pledge_id.toLowerCase() === pageId().toLowerCase());
   const main = $("#p-main");
-  if (!p) { main.innerHTML = `<h1>Promise not found</h1><p>Check the link, or <a href="promises.html">search all promises</a>.</p>`; return; }
+  if (!p) { main.innerHTML = `<h1>Promise not found</h1><p>Check the link, or <a href="/promises.html">search all promises</a>.</p>`; return; }
   const o = officials.find((x) => x.official_id === p.official_id);
-  document.title = `${p.pledge_id}: ${o.name} | Promise Tracker`;
+  document.title = `${p.pledge_id}: ${o.name} | Pledge Ledger`;
   const senate = o.office === "Senator";
   const cfg = OFFICE[o.office] || OFFICE.Governor;
   const c = p.current;
@@ -381,11 +403,12 @@ async function promise() {
     ${latest.evidence.length ? `<ol>${latest.evidence.map((e) => `<li><a href="${esc(safeUrl(e.url))}" rel="noopener">${esc(e.url.replace(/^https?:\/\//, "").slice(0, 90))}</a>${e.cited_by < 2 ? ` <span class="small muted">(cited by one reviewer)</span>` : ""}</li>`).join("")}</ol>` : "<p>No evidence links recorded.</p>"}`
     : `<div class="notice"><p><strong>Not yet rated.</strong> ${c.in_review ? "Two reviewers are working on the first rating." : `Ratings start after the ${cfg.title} takes office in January 2027. The first review covers the first 100 days.`}</p></div>`;
   main.innerHTML = `
-    <p class="crumbs"><a href="index.html">Everyone we track</a> / <a href="official.html?id=${encodeURIComponent(o.official_id)}">${esc(o.name)}</a> / ${esc(p.pledge_id)}</p>
+    <p class="crumbs"><a href="/">Everyone we track</a> / <a href="${personUrl(o.official_id)}">${esc(o.name)}</a> / ${esc(p.pledge_id)}</p>
     <p class="quote quote-lg">${esc(p.pledge_text)}</p>
     <p class="muted">${esc(o.name)}, ${senate ? "Senate" : "governor"} campaign, ${esc(SOURCE[p.source_type] || p.source_type).toLowerCase()}. ${esc(AREA[p.policy_area] || p.policy_area)}.</p>
+    ${shareBtn(promiseUrl(p.pledge_id), `${o.name} promised: ${p.pledge_text.slice(0, 120)}`)}
     ${p.review_flags.length ? `<ul class="flags" aria-label="Review notes">${p.review_flags.map((f) => `<li>${esc(FLAG[f] || f)}</li>`).join("")}</ul>` : ""}
-    ${!p.active ? `<div class="notice"><p>This promise was ${p.merged_into ? `merged into <a href="promise.html?id=${esc(p.merged_into)}">${esc(p.merged_into)}</a> as a duplicate` : "removed from the tracker after review"}.</p></div>` : ""}
+    ${!p.active ? `<div class="notice"><p>This promise was ${p.merged_into ? `merged into <a href="${promiseUrl(p.merged_into)}">${esc(p.merged_into)}</a> as a duplicate` : "removed from the tracker after review"}.</p></div>` : ""}
     ${verdict}
     ${p.history.length > 1 ? `<h2>How the rating changed</h2><ol class="timeline">${p.history.map((h) => `<li><strong>${fmtDate(h.period_end)}</strong>: ${OUTCOME[h.outcome]}${h.effort != null ? `, ${EFFORT[h.effort]?.toLowerCase()}` : ""}</li>`).join("")}</ol>` : ""}
     <h2>Where this promise comes from</h2>
@@ -403,7 +426,7 @@ async function promise() {
     <h2>Think we got this wrong?</h2>
     <p>Anyone can ask us to review a rating or a quote, including the ${cfg.title}'s office. Every request and our answer is public.</p>
     <p><a class="btn" href="${issueUrl(p.pledge_id)}" rel="noopener">Ask for a review or report an error</a></p>
-    <p class="small muted">You'll need a free GitHub account. Every fix we make is listed on the <a href="corrections.html">corrections page</a>.</p>`;
+    <p class="small muted">You'll need a free GitHub account. Every fix we make is listed on the <a href="/corrections.html">corrections page</a>.</p>`;
 }
 
 async function compare() {
@@ -481,7 +504,7 @@ async function corrections() {
   const list = await load("corrections");
   $("#corr").innerHTML = list.length
     ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Promise</th><th>Type</th><th>What changed</th></tr></thead><tbody>
-      ${list.map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.pledge_id ? `<a href="promise.html?id=${encodeURIComponent(c.pledge_id)}">${esc(c.pledge_id)}</a>` : "Whole site"}</td><td>${esc(CORRECTION_KIND[c.kind] || c.kind)}</td><td>${esc(c.what_changed)}${c.issue_url ? ` <a href="${esc(safeUrl(c.issue_url))}" rel="noopener">Request</a>` : ""}</td></tr>`).join("")}
+      ${list.map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.pledge_id ? `<a href="${promiseUrl(c.pledge_id)}">${esc(c.pledge_id)}</a>` : "Whole site"}</td><td>${esc(CORRECTION_KIND[c.kind] || c.kind)}</td><td>${esc(c.what_changed)}${c.issue_url ? ` <a href="${esc(safeUrl(c.issue_url))}" rel="noopener">Request</a>` : ""}</td></tr>`).join("")}
       </tbody></table></div>`
     : `<div class="notice"><p>No corrections yet. When we fix a quote, a source or a rating, it will be listed here.</p></div>`;
   $("#review-link").href = issueUrl();

@@ -1,4 +1,4 @@
-/* Promise Tracker — one stylesheet for the public site and the coder tool */
+/* Pledge Ledger — one stylesheet for the public site and the coder tool */
 :root {
   --ink: #1d2733;
   --ink-2: #4a5663;
@@ -276,3 +276,7 @@ section + section .office-head { padding-top: 1.5rem; border-top: 3px solid var(
   .pcard { padding: .6rem .8rem; gap: .2rem; }
   .tabs { margin-top: 1.5rem; }
 }
+
+/* share */
+.share-row { margin: 0 0 1.25rem; display: flex; align-items: center; gap: .75rem; }
+.share { padding-inline: 1rem; }

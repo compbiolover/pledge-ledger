@@ -1,4 +1,4 @@
-# Promise Tracker
+# Pledge Ledger
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24047632.svg)](https://doi.org/10.5281/zenodo.24047632)
 
@@ -19,6 +19,10 @@ data/adjudications┘        └─► out/adjudication_queue.csv (disagreements
 ```
 
 `build.py` validates everything, works out what both reviewers agreed on, applies tie-breaker decisions, computes agreement (Cohen's kappa) and writes the JSON the site reads. Nothing from a single reviewer is ever published.
+
+## Share links
+
+`build.py` writes a static page for every person (`/people/<id>/`) and every promise (`/promises/<id>/`), plus `sitemap.xml`. Each carries its own title, description and preview image tags, so links shared in iMessage, WhatsApp, Signal, Slack and social apps show a proper card. Those crawlers don't run JavaScript, which is why the tags are written at build time. The preview image is `site/assets/og.png`. Pages use root-relative links (`/assets/...`), so the site must be served from the domain root.
 
 ## Run it locally
 
@@ -83,6 +87,6 @@ Data, codebook and site text: [CC BY 4.0](LICENSE-DATA.md). Code: [MIT](LICENSE)
 
 ## Cite
 
-Willems, A. (2026). *Promise Tracker: campaign promises of governors and senators elected in 2026* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.24047632
+Willems, A. (2026). *Pledge Ledger: campaign promises of governors and senators elected in 2026* [Data set]. Zenodo. https://doi.org/10.5281/zenodo.24047632
 
 The frozen pre-registration release is https://doi.org/10.5281/zenodo.24047633.
