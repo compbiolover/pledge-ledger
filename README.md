@@ -41,7 +41,7 @@ cd ~/promise-tracker/tracker
 git init -b main
 git add .
 git commit -m "Promise tracker: data, codebook, site, rating tool"
-gh repo create compbiolover/promise-tracker --public --source . --push
+gh repo create compbiolover/pledge-ledger --public --source . --push
 ```
 
 Then on GitHub: **Settings, Pages, Build and deployment, Source: GitHub Actions**. Every push to `main` now runs the tests, rebuilds the data and redeploys the site.

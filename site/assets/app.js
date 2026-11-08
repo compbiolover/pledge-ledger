@@ -1,6 +1,6 @@
 // Pledge Ledger public site. No build step, no dependencies.
 // Edit REPO if the GitHub repository has a different name.
-const REPO = "compbiolover/promise-tracker";
+const REPO = "compbiolover/pledge-ledger";
 
 const OUTCOME = {
   kept: "Kept", partial: "Partially kept", in_progress: "In progress",
