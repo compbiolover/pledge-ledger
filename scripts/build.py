@@ -14,6 +14,7 @@ Outputs:
 """
 import csv
 import glob
+import html
 import json
 import math
 import os
@@ -328,6 +329,91 @@ def reliability(pairs, results):
 
 # ---------- assemble ----------
 
+SITE_URL = "https://pledgeledger.org"
+OUTCOME_LABEL = {"not_rated": "Not yet rated", "kept": "Kept", "partial": "Partially kept",
+                 "in_progress": "In progress", "broken": "Broken"}
+ROLE = {"Governor": "Governor-elect of", "Senator": "Senator-elect from"}
+PARTY = {"D": "Democrat", "R": "Republican", "I": "Independent"}
+
+
+def clip(text, n):
+    text = " ".join(text.split())
+    return text if len(text) <= n else text[: n - 1].rsplit(" ", 1)[0] + "\u2026"
+
+
+def share_page(template, page_id, url, title, og_title, description):
+    """Fill a page template with link-preview tags so shared links show a proper card.
+
+    Crawlers for iMessage, WhatsApp and the like don't run JavaScript, so the
+    title and description have to be in the HTML itself."""
+    e = lambda v: html.escape(v, quote=True)
+    head = f"""<!-- share:start -->
+<link rel="canonical" href="{e(url)}">
+<meta property="og:site_name" content="Pledge Ledger">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{e(url)}">
+<meta property="og:title" content="{e(og_title)}">
+<meta property="og:description" content="{e(description)}">
+<meta property="og:image" content="{SITE_URL}/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Pledge Ledger: tracking the campaign promises of the governors and senators elected in 2026">
+<meta name="twitter:card" content="summary_large_image">
+<!-- share:end -->"""
+    out = re.sub(r"<!-- share:start -->.*?<!-- share:end -->", lambda _: head, template, count=1, flags=re.S)
+    out = re.sub(r"<title>.*?</title>", lambda _: f"<title>{e(title)}</title>", out, count=1)
+    out = re.sub(r'<meta name="description" content="[^"]*">',
+                 lambda _: f'<meta name="description" content="{e(description)}">', out, count=1)
+    return out.replace("<body ", f'<body data-id="{e(page_id)}" ', 1)
+
+
+def write_share_pages(officials, pledges):
+    """Static pages at /people/<id>/ and /promises/<id>/, plus a sitemap."""
+    import shutil
+    with open(os.path.join(SITE, "official.html"), encoding="utf-8") as f:
+        person_tpl = f.read()
+    with open(os.path.join(SITE, "promise.html"), encoding="utf-8") as f:
+        promise_tpl = f.read()
+    off = {o["official_id"]: o for o in officials}
+    urls = [f"{SITE_URL}/", f"{SITE_URL}/promises.html", f"{SITE_URL}/compare.html", f"{SITE_URL}/methods.html"]
+
+    def write(kind, pid, text):
+        d = os.path.join(SITE, kind, pid.lower())
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "index.html"), "w", encoding="utf-8") as f:
+            f.write(text)
+
+    for kind in ("people", "promises"):
+        shutil.rmtree(os.path.join(SITE, kind), ignore_errors=True)
+    for o in officials:
+        s = o["summary"]
+        url = f"{SITE_URL}/people/{o['official_id'].lower()}/"
+        tag = f"{o['party']}-{o['state']}"
+        status = (f"{s['rated']} rated so far; {round(100 * (s['kept_or_partial_share'] or 0))}% kept or partly kept."
+                  if s["rated"] else "Ratings begin after they take office in January 2027.")
+        desc = (f"{ROLE.get(o['office'], '')} {o['state_name']} ({PARTY.get(o['party'], o['party'])}). "
+                f"{s['n']} specific campaign promises, each with a saved copy of its source. {status}")
+        write("people", o["official_id"], share_page(
+            person_tpl, o["official_id"], url, f"{o['name']}'s promises | Pledge Ledger",
+            f"{o['name']} ({tag}): {s['n']} campaign promises", desc))
+        urls.append(url)
+    for p in pledges:
+        o = off[p["official_id"]]
+        url = f"{SITE_URL}/promises/{p['pledge_id'].lower()}/"
+        status = OUTCOME_LABEL.get(p["current"]["outcome"], p["current"]["outcome"])
+        desc = f"\u201c{clip(p['pledge_text'], 230)}\u201d Status: {status}."
+        write("promises", p["pledge_id"], share_page(
+            promise_tpl, p["pledge_id"], url, f"{p['pledge_id']}: {o['name']} | Pledge Ledger",
+            f"What {o['name']} ({o['party']}-{o['state']}) promised", desc))
+        if p["active"]:
+            urls.append(url)
+    with open(os.path.join(SITE, "sitemap.xml"), "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
+        f.writelines(f"<url><loc>{html.escape(u)}</loc></url>\n" for u in urls)
+        f.write("</urlset>\n")
+    return len(officials), len(pledges)
+
+
 def build(check_only=False):
     officials = read_csv(os.path.join(DATA, "officials.csv"))
     pledges = read_csv(os.path.join(DATA, "pledges.csv"))
@@ -482,6 +568,7 @@ def build(check_only=False):
     dump(os.path.join(SITE, "data", "summary.json"), {"cohorts": cohorts})
     dump(os.path.join(SITE, "data", "reliability.json"), rel)
     dump(os.path.join(SITE, "data", "meta.json"), meta)
+    n_people, n_promise_pages = write_share_pages(pub_officials, pub_pledges)
     dump(os.path.join(SITE, "data", "corrections.json"),
          sorted(corrections, key=lambda c: c["date"], reverse=True))
 
@@ -512,6 +599,7 @@ def build(check_only=False):
                                      for c in res["coders"])
                     w.writerow([pid, task, period, field, vals])
                     n_disp += 1
+    print(f"Share pages: {n_people} people, {n_promise_pages} promises")
     print(f"Built: {len(pub_pledges)} pledges ({len(active)} active), {len(ratings)} rating events, "
           f"{n_disp} disputes queued, {len(warnings)} warnings")
 

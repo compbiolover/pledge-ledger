@@ -203,3 +203,21 @@ class PreregAndCorrections(unittest.TestCase):
         self.assertEqual(build.validate_corrections([good], {"X-1"}), [])
         bad = {"date": "Feb 1", "pledge_id": "Z", "kind": "oops", "what_changed": "", "issue_url": "javascript:x"}
         self.assertEqual(len(build.validate_corrections([bad], {"X-1"})), 5)
+
+
+class SharePages(unittest.TestCase):
+    TPL = ('<title>x</title>\n<meta name="description" content="d">\n<!-- share:start -->\nold\n<!-- share:end -->\n'
+           '<body data-page="official">')
+
+    def test_fills_tags_and_escapes(self):
+        out = build.share_page(self.TPL, "S-NC", "https://pledgeledger.org/people/s-nc/",
+                               'A "quoted" <title>', "OG & title", 'Desc with "quotes" & <tags>')
+        self.assertIn('<body data-id="S-NC" data-page="official">', out)
+        self.assertIn("<title>A &quot;quoted&quot; &lt;title&gt;</title>", out)
+        self.assertIn('content="OG &amp; title"', out)
+        self.assertIn('content="Desc with &quot;quotes&quot; &amp; &lt;tags&gt;"', out)
+        self.assertNotIn("old", out)
+
+    def test_clip_breaks_on_a_word(self):
+        self.assertEqual(build.clip("one two three four", 12), "one two…")
+        self.assertEqual(build.clip("short", 12), "short")

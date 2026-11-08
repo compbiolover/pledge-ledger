@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /coder/
+Sitemap: https://pledgeledger.org/sitemap.xml
