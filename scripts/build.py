@@ -5,9 +5,10 @@ Usage:  python3 scripts/build.py            (writes site/data/*.json and out/*.c
         python3 scripts/build.py --check    (validate only; non-zero exit on errors)
 
 Inputs (data/):
-  officials.csv, pledges.csv, power_context.csv, adjudications.csv, ratings/<coder>.csv
+  officials.csv, pledges.csv, power_context.csv, adjudications.csv, corrections.csv, ratings/<coder>.csv
+  ../prereg/manifest.json (optional; once present, changed promises need a logged correction)
 Outputs:
-  site/data/{officials,pledges,summary,reliability,meta}.json   public site
+  site/data/{officials,pledges,summary,reliability,meta,corrections}.json   public site
   site/coder/pledges.json                                         blinded coder queue
   out/adjudication_queue.csv                                      disagreements to resolve
 """
@@ -20,6 +21,8 @@ import re
 import sys
 from collections import Counter, defaultdict
 from datetime import date
+
+from freeze import pledge_hash
 
 ROOT = os.environ.get("PT_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
@@ -180,6 +183,50 @@ def validate(officials, pledges, ratings, adjudications, power):
     return errors, warnings
 
 
+CORRECTION_KINDS = ("quote", "source", "rating", "metadata", "other")
+
+
+def validate_corrections(corrections, pledge_ids):
+    errors = []
+    for i, c in enumerate(corrections, start=2):
+        where = f"corrections.csv line {i}"
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", c.get("date", "")):
+            errors.append(f"{where}: date must be YYYY-MM-DD")
+        if c.get("pledge_id") and c["pledge_id"] not in pledge_ids:
+            errors.append(f"{where}: unknown pledge_id {c['pledge_id']}")
+        if c.get("kind") not in CORRECTION_KINDS:
+            errors.append(f"{where}: kind must be one of {CORRECTION_KINDS}")
+        if not c.get("what_changed", "").strip():
+            errors.append(f"{where}: what_changed is required")
+        if c.get("issue_url") and not re.match(r"https?://", c["issue_url"]):
+            errors.append(f"{where}: issue_url must be an http(s) URL")
+    return errors
+
+
+def check_prereg(pledges, manifest, corrections):
+    """Label each promise frozen/added/changed against the pre-registration manifest.
+
+    A promise whose official, wording or source changed after the freeze must have a
+    quote or source correction logged for it, or the build fails."""
+    if not manifest:
+        return {p["pledge_id"]: None for p in pledges}, []
+    fixed = {c["pledge_id"] for c in corrections if c.get("kind") in ("quote", "source")}
+    status, errors = {}, []
+    for p in pledges:
+        pid = p["pledge_id"]
+        frozen = manifest["pledges"].get(pid)
+        if frozen is None:
+            status[pid] = "added"
+        elif frozen == pledge_hash(p):
+            status[pid] = "frozen"
+        else:
+            status[pid] = "changed"
+            if pid not in fixed:
+                errors.append(f"prereg: {pid} changed since the pre-registration freeze; "
+                              "log a quote or source entry in data/corrections.csv")
+    return status, errors
+
+
 def load_ratings():
     rows = []
     for path in sorted(glob.glob(os.path.join(DATA, "ratings", "*.csv"))):
@@ -286,9 +333,16 @@ def build(check_only=False):
     pledges = read_csv(os.path.join(DATA, "pledges.csv"))
     power = read_csv(os.path.join(DATA, "power_context.csv"))
     adjudications = read_csv(os.path.join(DATA, "adjudications.csv"))
+    corr_path = os.path.join(DATA, "corrections.csv")
+    corrections = read_csv(corr_path) if os.path.exists(corr_path) else []
+    man_path = os.path.join(ROOT, "prereg", "manifest.json")
+    manifest = json.load(open(man_path, encoding="utf-8")) if os.path.exists(man_path) else None
     ratings = load_ratings()
 
     errors, warnings = validate(officials, pledges, ratings, adjudications, power)
+    errors += validate_corrections(corrections, {p["pledge_id"] for p in pledges})
+    prereg, prereg_errors = check_prereg(pledges, manifest, corrections)
+    errors += prereg_errors
     for w in warnings:
         print("warning:", w)
     if errors:
@@ -352,6 +406,9 @@ def build(check_only=False):
             "in_review": bool(history and history[-1]["outcome"] is None),
         }
         rec["history"] = final
+        rec["prereg"] = prereg[p["pledge_id"]]
+        rec["corrections"] = [{k: c[k] for k in ("date", "kind", "what_changed", "issue_url")}
+                              for c in corrections if c["pledge_id"] == p["pledge_id"]]
         pub_pledges.append(rec)
 
     # summaries
@@ -409,6 +466,7 @@ def build(check_only=False):
     meta = {"built": date.today().isoformat(), "codebook_version": CODEBOOK_VERSION,
             "pledges_total": len(pub_pledges), "pledges_active": len(active),
             "rating_events": len(ratings), "officials": len(officials),
+            "prereg_frozen_on": manifest["frozen_on"] if manifest else None,
             "latest_period": max((h["period_end"] for x in pub_pledges for h in x["history"]), default=None)}
 
     os.makedirs(os.path.join(SITE, "data"), exist_ok=True)
@@ -424,6 +482,8 @@ def build(check_only=False):
     dump(os.path.join(SITE, "data", "summary.json"), {"cohorts": cohorts})
     dump(os.path.join(SITE, "data", "reliability.json"), rel)
     dump(os.path.join(SITE, "data", "meta.json"), meta)
+    dump(os.path.join(SITE, "data", "corrections.json"),
+         sorted(corrections, key=lambda c: c["date"], reverse=True))
 
     # blinded coder queue: no official name, party, notes, or anyone's ratings
     office_of = {o["official_id"]: o["office"] for o in officials}

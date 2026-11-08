@@ -111,7 +111,9 @@ const fmtDate = (iso) => {
 const waybackDate = (ts) => (ts && ts.length >= 8 ? fmtDate(`${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}`) : "");
 const byStatus = (a, b) => OUTCOME_ORDER.indexOf(a.current.outcome) - OUTCOME_ORDER.indexOf(b.current.outcome)
   || a.policy_area.localeCompare(b.policy_area) || a.pledge_id.localeCompare(b.pledge_id, undefined, { numeric: true });
-const issueUrl = (title, body) => `https://github.com/${REPO}/issues/new?${new URLSearchParams({ title, body, labels: "appeal" })}`;
+const issueUrl = (pid = "") => `https://github.com/${REPO}/issues/new?${new URLSearchParams({ template: "review.yml", title: `Review request: ${pid}`, pledge_id: pid })}`;
+const PREREG_URL = `https://github.com/${REPO}/blob/main/PREREGISTRATION.md`;
+const CORRECTION_KIND = { quote: "Quote", source: "Source", rating: "Rating", metadata: "Details", other: "Other" };
 const legend = () => `<ul class="legend" aria-label="Status key">${OUTCOME_ORDER.map((o) => `<li>${mark(o)}${OUTCOME[o]}</li>`).join("")}</ul>`;
 
 function strip(pledges) {
@@ -315,11 +317,14 @@ async function promise() {
       <dt>How it gets done</dt><dd>${esc(INSTRUMENT[p.instrument] || p.instrument)}</dd>
       <dt>Needs others to act</dt><dd>${p.requires_other_actor === "Y" ? `Yes. The ${cfg.title} can't do this alone` : `No. Within the ${cfg.title}'s own power`}</dd>
       <dt>Keeps things as they are</dt><dd>${p.status_quo === "Y" ? "Yes" : "No, it changes something"}</dd>
+      ${p.prereg ? `<dt>Pre-registered</dt><dd>${{ frozen: `Yes. Locked in before ratings began (<a href="${PREREG_URL}" rel="noopener">what that means</a>)`, added: `No. Added after the <a href="${PREREG_URL}" rel="noopener">pre-registration</a>, under the same rules`, changed: `Yes, then corrected afterward (see below)` }[p.prereg]}</dd>` : ""}
       ${p.extractor_notes ? `<dt>Notes</dt><dd>${esc(p.extractor_notes)}</dd>` : ""}
     </dl>
+    ${p.corrections.length ? `<h2>Corrections</h2><ul>${p.corrections.map((x) => `<li><strong>${fmtDate(x.date)}</strong> (${esc(CORRECTION_KIND[x.kind] || x.kind)}): ${esc(x.what_changed)}${x.issue_url ? ` <a href="${esc(safeUrl(x.issue_url))}" rel="noopener">Request</a>` : ""}</li>`).join("")}</ul>` : ""}
     <h2>Think we got this wrong?</h2>
     <p>Anyone can ask us to review a rating or a quote, including the ${cfg.title}'s office. Every request and our answer is public.</p>
-    <p><a class="btn" href="${issueUrl(`Review request: ${p.pledge_id}`, `Promise: ${p.pledge_id}\nCurrent rating: ${OUTCOME[c.outcome]}\n\nWhat should change, and the evidence for it:\n`)}" rel="noopener">Ask for a review</a></p>`;
+    <p><a class="btn" href="${issueUrl(p.pledge_id)}" rel="noopener">Ask for a review or report an error</a></p>
+    <p class="small muted">You'll need a free GitHub account. Every fix we make is listed on the <a href="corrections.html">corrections page</a>.</p>`;
 }
 
 async function compare() {
@@ -387,9 +392,23 @@ async function methods() {
   $("#codebook-link").href = `https://github.com/${REPO}/blob/main/codebook/CODEBOOK.md`;
   $("#data-link").href = `https://github.com/${REPO}/tree/main/data`;
   $("#built").textContent = `Codebook version ${meta.codebook_version}. Data built ${fmtDate(meta.built)}.`;
+  $("#prereg-status").textContent = meta.prereg_frozen_on
+    ? `The pre-registration was frozen on ${fmtDate(meta.prereg_frozen_on)}.` : "The pre-registration has not been frozen yet.";
+  $("#prereg-link").href = PREREG_URL;
+  $("#review-link").href = issueUrl();
 }
 
-const pages = { home, promises, official, governor: official, promise, compare, methods };
+async function corrections() {
+  const list = await load("corrections");
+  $("#corr").innerHTML = list.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Promise</th><th>Type</th><th>What changed</th></tr></thead><tbody>
+      ${list.map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.pledge_id ? `<a href="promise.html?id=${encodeURIComponent(c.pledge_id)}">${esc(c.pledge_id)}</a>` : "Whole site"}</td><td>${esc(CORRECTION_KIND[c.kind] || c.kind)}</td><td>${esc(c.what_changed)}${c.issue_url ? ` <a href="${esc(safeUrl(c.issue_url))}" rel="noopener">Request</a>` : ""}</td></tr>`).join("")}
+      </tbody></table></div>`
+    : `<div class="notice"><p>No corrections yet. When we fix a quote, a source or a rating, it will be listed here.</p></div>`;
+  $("#review-link").href = issueUrl();
+}
+
+const pages = { home, promises, official, governor: official, promise, compare, methods, corrections };
 const page = document.body.dataset.page;
 (pages[page] || (async () => {}))().catch((e) => {
   const m = document.querySelector("main");

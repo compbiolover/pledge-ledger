@@ -1,0 +1,47 @@
+name: Ask for a review or report an error
+description: A rating, quote or source on the tracker looks wrong.
+title: "Review request: "
+labels: ["appeal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for checking our work. Every request and our answer stay public, and any change is logged on the site's corrections page.
+  - type: input
+    id: pledge_id
+    attributes:
+      label: Promise ID
+      description: Shown at the top of the promise page, e.g. S-NC-004. Leave blank if this is about the whole site.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What's wrong?
+      options:
+        - The rating is wrong
+        - The quote is wrong or missing context
+        - The source or saved copy is broken or wrong
+        - This isn't really a promise, or it's a duplicate
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What should change, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Links to bills, votes, orders, budgets or reporting. Primary sources are best.
+  - type: dropdown
+    id: affiliation
+    attributes:
+      label: Are you connected to this official, their office, or an opposing campaign?
+      description: Optional. It won't count against your request; it just helps us read it fairly.
+      options:
+        - "No"
+        - "Yes, the official's office or campaign"
+        - "Yes, an opposing campaign or party"
+        - "Prefer not to say"

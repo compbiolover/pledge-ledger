@@ -162,3 +162,44 @@ class Validation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PreregAndCorrections(unittest.TestCase):
+    def setUp(self):
+        self.p = {"pledge_id": "X-1", "official_id": "X", "pledge_text": "Do a thing", "source_url": "https://a"}
+        self.manifest = {"pledges": {"X-1": build.pledge_hash(self.p)}}
+
+    def test_no_manifest_means_no_status(self):
+        st, errs = build.check_prereg([self.p], None, [])
+        self.assertEqual((st, errs), ({"X-1": None}, []))
+
+    def test_unchanged_is_frozen_and_new_is_added(self):
+        new = dict(self.p, pledge_id="X-2")
+        st, errs = build.check_prereg([self.p, new], self.manifest, [])
+        self.assertEqual(st, {"X-1": "frozen", "X-2": "added"})
+        self.assertEqual(errs, [])
+
+    def test_change_without_correction_fails(self):
+        edited = dict(self.p, pledge_text="Do a different thing")
+        st, errs = build.check_prereg([edited], self.manifest, [])
+        self.assertEqual(st["X-1"], "changed")
+        self.assertTrue(errs)
+
+    def test_change_with_correction_passes(self):
+        edited = dict(self.p, source_url="https://b")
+        corr = [{"pledge_id": "X-1", "kind": "source"}]
+        self.assertEqual(build.check_prereg([edited], self.manifest, corr)[1], [])
+
+    def test_rating_correction_does_not_excuse_quote_change(self):
+        edited = dict(self.p, pledge_text="Other")
+        self.assertTrue(build.check_prereg([edited], self.manifest, [{"pledge_id": "X-1", "kind": "rating"}])[1])
+
+    def test_whitespace_only_change_is_not_a_change(self):
+        st, _ = build.check_prereg([dict(self.p, pledge_text="Do a thing  ")], self.manifest, [])
+        self.assertEqual(st["X-1"], "frozen")
+
+    def test_corrections_validation(self):
+        good = {"date": "2027-02-01", "pledge_id": "X-1", "kind": "quote", "what_changed": "Fixed typo", "issue_url": ""}
+        self.assertEqual(build.validate_corrections([good], {"X-1"}), [])
+        bad = {"date": "Feb 1", "pledge_id": "Z", "kind": "oops", "what_changed": "", "issue_url": "javascript:x"}
+        self.assertEqual(len(build.validate_corrections([bad], {"X-1"})), 5)

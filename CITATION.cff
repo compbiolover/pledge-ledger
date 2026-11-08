@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this data, please cite it as below."
+title: "Promise Tracker: campaign promises of governors and senators elected in 2026"
+type: dataset
+authors:
+  - family-names: Willems
+    given-names: Andrew
+    orcid: "https://orcid.org/0000-0002-7927-0745"
+repository-code: "https://github.com/compbiolover/promise-tracker"
+url: "https://compbiolover.github.io/promise-tracker/"
+license: [CC-BY-4.0, MIT]
+keywords: [campaign promises, pledge fulfillment, governors, U.S. Senate, 2026 elections]

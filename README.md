@@ -64,6 +64,17 @@ To continue on another computer, use **Load my ratings file** in the tool.
 - **Archiving sources:** `python3 scripts/archive_sources.py data/pledges.csv --in-place` archives every promise that has no `archive_url` yet and fills in the link, timestamp and fingerprint (keeps a `.bak`). Run it whenever you add promises.
 - **Senators** use office `Senator`, IDs like `S-TX`, and are rated effort-first (codebook Part 2b). Alaska and Mississippi Senate races were not called when the list was built; add them with the same rule if the winner is new to the seat.
 
+## Pre-registration and corrections
+
+- **Freeze (once, before any status rating):** `python3 scripts/freeze.py` writes `prereg/manifest.json` with fingerprints of the codebook, officials, `PREREGISTRATION.md` and every promise. Commit it and publish a GitHub release of that commit. If Zenodo is linked to the repo, the release also gets a DOI.
+- **After the freeze,** the build fails if a promise's official, wording or source changes without a matching `quote` or `source` row in `data/corrections.csv`. New promises are allowed and shown as "added after pre-registration". Other changes go under Amendments in `PREREGISTRATION.md`.
+- **Corrections log:** add a row to `data/corrections.csv` (`date,pledge_id,kind,what_changed,issue_url`; kind is quote, source, rating, metadata or other) for every fix. The site lists them on `corrections.html` and on the promise's page.
+- **Review requests** use the issue form in `.github/ISSUE_TEMPLATE/review.yml`, which labels them `appeal`.
+
 ## Before going public
 
 - Recruit the second reviewer. Nothing gets rated without one.
+
+## License
+
+Data, codebook and site text: [CC BY 4.0](LICENSE-DATA.md). Code: [MIT](LICENSE). Quoted campaign promises belong to their authors.
