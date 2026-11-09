@@ -439,7 +439,7 @@ def write_share_pages(officials, pledges):
     with open(os.path.join(SITE, "promise.html"), encoding="utf-8") as f:
         promise_tpl = f.read()
     off = {o["official_id"]: o for o in officials}
-    urls = [f"{SITE_URL}/", f"{SITE_URL}/promises.html", f"{SITE_URL}/compare.html", f"{SITE_URL}/methods.html"]
+    urls = [f"{SITE_URL}/", f"{SITE_URL}/promises.html", f"{SITE_URL}/compare.html", f"{SITE_URL}/methods.html", f"{SITE_URL}/about.html"]
 
     def write(kind, pid, text):
         d = os.path.join(SITE, kind, pid.lower())
