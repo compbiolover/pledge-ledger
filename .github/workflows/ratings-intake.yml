@@ -1,0 +1,63 @@
+name: Ratings intake
+
+# A reviewer opens a "Send my ratings" issue with their CSV attached. This job adds the file,
+# runs the same checks as a pull request, and opens the pull request for them.
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ratings-intake-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  intake:
+    if: contains(github.event.issue.labels.*.name, 'ratings')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Add the attached ratings file
+        id: add
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          coder=$(python scripts/intake_ratings.py 2> err.txt) || { cat err.txt; exit 1; }
+          echo "coder=$coder" >> "$GITHUB_OUTPUT"
+      - name: Check the file
+        run: |
+          set -o pipefail
+          { python scripts/check_append_only.py origin/main && python -m unittest discover -s tests && python scripts/build.py; } 2>&1 | tee -a err.txt
+      - name: Open the pull request
+        env:
+          CODER: ${{ steps.add.outputs.coder }}
+        run: |
+          branch="ratings-$CODER-issue-$ISSUE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add "data/ratings/$CODER.csv"
+          git commit -m "Add ratings from $CODER (issue #$ISSUE)" || { gh issue comment "$ISSUE" --body "Your file matches what is already in the repository, so there is nothing new to add."; exit 0; }
+          git push --force origin "$branch"
+          url=$(gh pr list --head "$branch" --json url -q '.[0].url')
+          [ -n "$url" ] || url=$(gh pr create --head "$branch" --title "Add ratings from $CODER" \
+            --body "Ratings sent in issue #$ISSUE. The intake job already ran the append-only check, the tests and the build. Closes #$ISSUE.")
+          gh issue comment "$ISSUE" --body "Thanks. Your file passed the checks and is in $url. A maintainer will merge it."
+      - name: Tell the reviewer what went wrong
+        if: failure()
+        run: |
+          { echo "Your ratings file wasn't added. Here is why:"; echo; echo '```'; tail -n 20 err.txt; echo '```';
+            echo; echo "Fix the problem, then edit this issue and attach the new file. The check runs again on every edit."; } > msg.txt
+          gh issue comment "$ISSUE" --body-file msg.txt

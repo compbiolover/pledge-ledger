@@ -1,0 +1,24 @@
+name: Send my ratings (reviewers only)
+description: Upload the file from the rating tool. A bot checks it and opens a pull request for you.
+title: "Ratings from "
+labels: ["ratings"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this after **Download my ratings** in the rating tool. You don't need to use git.
+        Only send your file after you have finished the round. Don't discuss ratings with the other reviewer until you have both sent yours.
+  - type: input
+    id: coder
+    attributes:
+      label: Reviewer ID
+      description: The ID you typed in the rating tool, e.g. awillems.
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: Ratings file
+      description: Drag your downloaded .csv file into this box, or click below the box to attach it. Don't paste or edit its contents.
+    validations:
+      required: true
