@@ -16,6 +16,8 @@ const AREA = { economy_tax: "Economy and taxes", budget: "Budget", education: "E
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const KEY = "pt-ratings-v1";
+// Edit if the GitHub repository is renamed (also REPO in assets/app.js).
+const sendUrl = (id) => `https://github.com/compbiolover/pledge-ledger/issues/new?${new URLSearchParams({ template: "ratings.yml", title: `Ratings from ${id}`, coder: id })}`;
 const safeUrl = (u) => (/^https?:\/\//i.test(u || "") ? u : "#");
 let memory = {}; // fallback when browser storage is unavailable
 let storageOk = true;
@@ -72,8 +74,9 @@ function render() {
   }
   if (!order.length) {
     $("#card").innerHTML = `<div class="card"><h2 style="margin-top:0">All done for this task</h2>
-      <p>Download your ratings and add the file to the repository as <code>data/ratings/${esc(S.coder)}.csv</code>.</p>
-      <p><button class="primary" type="button" id="export2">Download my ratings</button></p></div>`;
+      <p>1. Download your ratings. 2. Open the send form and drag the file into it. A bot checks the file and adds it for you. You don't need git.</p>
+      <p style="display:flex;gap:.75rem;flex-wrap:wrap"><button class="primary" type="button" id="export2">Download my ratings</button>
+      <a class="btn" href="${esc(sendUrl(S.coder))}" target="_blank" rel="noopener">Open the send form</a></p></div>`;
     $("#export2").onclick = exportCsv;
     progress();
     return;
@@ -181,7 +184,7 @@ function exportCsv() {
   a.download = `${S.coder}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  $("#save-status").textContent = `Downloaded ${rows.length} ratings as ${S.coder}.csv. Replace data/ratings/${S.coder}.csv in the repository with it.`;
+  $("#save-status").textContent = `Downloaded ${rows.length} ratings as ${S.coder}.csv. To send it, use "Open the send form" when you finish the round.`;
 }
 
 function parseCsv(text) {

@@ -21,7 +21,7 @@ data/adjudications┘        └─► out/adjudication_queue.csv (disagreements
 
 The site is deployed by GitHub Actions (`.github/workflows/deploy.yml`). In the repository settings, **Pages, Build and deployment, Source** must be set to **GitHub Actions**. Every push to `main` runs the tests, rebuilds the data and redeploys the site.
 
-If the repository is renamed, change `REPO` at the top of `site/assets/app.js` and the codebook link in `site/coder/index.html`.
+If the repository is renamed, change `REPO` at the top of `site/assets/app.js`, `sendUrl` in `site/coder/coder.js` and the codebook link in `site/coder/index.html`.
 
 ## The review workflow
 
@@ -32,7 +32,9 @@ If the repository is renamed, change `REPO` at the top of `site/assets/app.js` a
 For both tasks:
 
 1. Each reviewer works alone and clicks **Download my ratings**.
-2. Commit the file as `data/ratings/<reviewer-id>.csv`. Use a pull request so the build checks it.
+2. Send it with **Open the send form** in the tool (the "Send my ratings" issue form). The reviewer drags the file in; no git needed. The `Ratings intake` Action saves it as `data/ratings/<reviewer-id>.csv`, runs the append-only check, the tests and the build, and opens a pull request. If a check fails, it comments on the issue with the reason, and editing the issue with a fixed file runs it again. A maintainer reviews and merges the pull request. Reviewers who use git can still commit the file through their own pull request.
+
+   One-time setup: in **Settings, Actions, General**, turn on **Allow GitHub Actions to create and approve pull requests**, and create a `ratings` label. Pull requests opened by the Action don't trigger the deploy workflow's checks, which is why the Action runs them itself.
 3. The build lists disagreements in `out/adjudication_queue.csv` (also printed in the Actions log).
 4. A third person resolves each one by adding a row to `data/adjudications.csv` with a written reason. The tie-breaker must not be one of the two people who rated that promise; the build fails if they are.
 
