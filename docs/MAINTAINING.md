@@ -67,7 +67,7 @@ To continue on another computer, use **Load my ratings file** in the tool.
 - **Inauguration dates:** fill `term_start` in `data/officials.csv`.
 - **Alaska:** the race is provisional until ranked-choice tabulation (Nov 18) and certification (Nov 25). If the result changes, update `data/officials.csv` and drop or replace the AK pledges.
 - **Archiving sources:** `python3 scripts/archive_sources.py data/pledges.csv --in-place` archives every promise that has no `archive_url` yet and fills in the link, timestamp and fingerprint (keeps a `.bak`). Run it whenever you add promises.
-- **Senators** use office `Senator`, IDs like `S-TX`, and are rated effort-first (codebook Part 2b). The Alaska Senate race was not called when the list was built; add it with the same rule if the winner is new to the seat. Mississippi (Scott Colom, `S-MS`) was called on 2026-11-11 and added; his promises still need to be extracted and archived.
+- **Senators** use office `Senator`, IDs like `S-TX`, and are rated effort-first (codebook Part 2b). The Alaska Senate race was not called when the list was built; add it with the same rule if the winner is new to the seat. Mississippi (Scott Colom, `S-MS`) was called on 2026-11-11 and added. His promises are extracted but still need `archive_sources.py`.
 
 ## Pre-registration and corrections
 
