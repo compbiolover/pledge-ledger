@@ -34,6 +34,7 @@ Only uses the Python standard library (Python 3.8+). Expect roughly
 """
 import argparse
 import csv
+import gzip
 import hashlib
 import json
 import os
@@ -49,6 +50,16 @@ STATUS_URL = "https://web.archive.org/save/status/{}"
 UA = "pledge-tracker-archiver/1.0 (research; contact via archive.org account)"
 PROGRESS = "archive_progress.json"
 SNAP_DIR = "snapshots"
+# Text that only appears on bot-check pages (SiteGround, PerimeterX, Cloudflare), never on a real source.
+BOT_CHECK_MARKERS = (
+    "please wait while your request is being verified",
+    "sgcaptcha",
+    "access to this page has been denied",
+    "px-captcha",
+    "<title>just a moment...</title>",
+    "cf-browser-verification",
+    "attention required! | cloudflare",
+)
 
 
 def load_progress():
@@ -74,6 +85,14 @@ def request(url, data=None, headers=None, timeout=60):
         return r.status, r.read()
 
 
+def bot_check(body):
+    """Return the marker if this page is a bot check rather than the real source, else None."""
+    if body[:2] == b"\x1f\x8b":
+        body = gzip.decompress(body)
+    text = body[:200000].decode("utf-8", "replace").lower()
+    return next((m for m in BOT_CHECK_MARKERS if m in text), None)
+
+
 def local_copy(url):
     """Download the page ourselves and hash it. Returns (sha256, path) or (None, error)."""
     os.makedirs(SNAP_DIR, exist_ok=True)
@@ -81,6 +100,8 @@ def local_copy(url):
         _, body = request(url, timeout=60)
     except Exception as e:  # noqa: BLE001
         return None, f"download failed: {e}"
+    if bot_check(body):
+        return None, f"bot-check page ({bot_check(body)}); archive this one by hand"
     digest = hashlib.sha256(body).hexdigest()
     ext = ".pdf" if body[:4] == b"%PDF" else ".html"
     name = re.sub(r"[^A-Za-z0-9]+", "_", url)[:120] + "_" + digest[:10] + ext
@@ -120,6 +141,9 @@ def wayback_capture(url, auth):
         if st.get("status") == "success":
             ts = st["timestamp"]
             orig = st.get("original_url", url)
+            _, saved = request(f"https://web.archive.org/web/{ts}id_/{orig}", timeout=90)
+            if bot_check(saved):
+                raise RuntimeError(f"the capture is a bot-check page ({bot_check(saved)}); archive this one by hand")
             return f"https://web.archive.org/web/{ts}/{orig}", ts
         if st.get("status") == "error":
             raise RuntimeError(st.get("message") or st.get("status_ext") or "capture error")
@@ -160,6 +184,12 @@ def main():
             digest, path = local_copy(u)
             rec["sha256"], rec["local_snapshot"] = (digest or ""), path
             print(f"    local copy: {'ok ' + digest[:12] if digest else path}")
+            if not digest and path.startswith("bot-check"):
+                rec["error"] = path
+                prog[u] = rec
+                save_progress(prog)
+                print(f"    SKIPPED: {path}")
+                continue
         try:
             aurl, ts = wayback_capture(u, auth)
             rec["archive_url"], rec["archive_timestamp"] = aurl, ts
